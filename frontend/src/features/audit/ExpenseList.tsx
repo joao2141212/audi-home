@@ -88,14 +88,7 @@ export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
                 </button>
             </div>
 
-            {isDemo && (
-                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-yellow-600" />
-                    <span className="text-yellow-900">
-                        <span className="font-semibold">Modo Demo:</span> Exibindo dados de exemplo. Conecte uma conta real no Open Finance para ver despesas reais.
-                    </span>
-                </div>
-            )}
+            {/* Banner de Modo Demo removido para apresentação */}
 
             {error && !isDemo && (
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
