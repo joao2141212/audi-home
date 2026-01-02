@@ -57,26 +57,30 @@ export function OpenFinanceConnect() {
         console.error('Erro na conexão:', error)
     }
 
+    const handleDisconnect = () => {
+        // Limpar dados locais
+        localStorage.removeItem('demo_connected')
+        localStorage.removeItem('demo_itemId')
+        localStorage.removeItem('demo_bankInfo')
+        localStorage.removeItem('demo_lastSync')
+
+        // Resetar estado
+        setConnected(false)
+        setBankInfo(null)
+        setItemId(null)
+        setLastSync(null)
+    }
+
     const handleSync = async () => {
         setSyncing(true)
-
-        try {
-            const response = await fetch(`http://localhost:8000/api/v1/pluggy/sync-transactions/${CONDOMINIO_ID}`)
-
-            if (!response.ok) {
-                throw new Error('Sync failed')
-            }
-
-            const data = await response.json()
-            setLastSync(new Date().toLocaleString('pt-BR'))
-
-            alert(`✅ ${data.transactions_count || 0} transações sincronizadas!`)
-        } catch (error) {
-            console.error('Sync failed:', error)
-            alert('Falha na sincronização. Tente novamente.')
-        } finally {
+        // MOCK SYNC: Simular delay sem chamar backend (para não dar erro na demo)
+        setTimeout(() => {
+            const now = new Date().toLocaleString('pt-BR')
+            setLastSync(now)
+            localStorage.setItem('demo_lastSync', now)
             setSyncing(false)
-        }
+            alert('✅ Sincronização simulada com sucesso (Modo Demo)')
+        }, 1500)
     }
 
     return (
@@ -166,44 +170,63 @@ export function OpenFinanceConnect() {
                                     </p>
                                 </div>
                             </div>
-                            <button
-                                onClick={handleSync}
-                                disabled={syncing}
-                                className={cn(
-                                    "flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md transition",
-                                    syncing ? "opacity-50 cursor-not-allowed" : "hover:bg-green-700"
-                                )}
-                            >
-                                <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
-                                {syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
-                            </button>
-                        </div>
-
-                        {lastSync && (
-                            <p className="text-sm text-gray-600">
-                                Última sincronização: <span className="font-medium">{lastSync}</span>
-                            </p>
-                        )}
-
-                        {/* Auto-sync Schedule */}
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="flex items-start gap-3">
-                                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                                <div>
-                                    <p className="font-medium text-blue-900">Sincronização Automática Ativa</p>
-                                    <p className="text-sm text-blue-700 mt-1">
-                                        O sistema busca novas transações a cada 1 hora automaticamente.
-                                        Você também pode sincronizar manualmente a qualquer momento.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        </p>
                     </div>
-                )}
-            </div>
+                            </div>
 
-            {/* Benefits */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-2">
+                {/* Botão de Sincronizar (Comentado/Escondido conforme pedido na demo, ou Mockado) 
+                                   Descomente se quiser mostrar o botão funcionando fake.
+                                <button
+                                    onClick={handleSync}
+                                    disabled={syncing}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md transition hover:bg-green-700",
+                                        syncing && "opacity-50 cursor-not-allowed"
+                                    )}
+                                >
+                                    <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+                                    {syncing ? '...' : 'Sincronizar'}
+                                </button>
+                                */}
+
+                <button
+                    onClick={handleDisconnect}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium px-3 py-2 border border-red-200 rounded-md hover:bg-red-50 transition"
+                >
+                    Desconectar
+                </button>
+            </div>
+        </div>
+
+                        {
+        lastSync && (
+            <p className="text-sm text-gray-600">
+                Última sincronização: <span className="font-medium">{lastSync}</span>
+            </p>
+        )
+    }
+
+    {/* Auto-sync Schedule */ }
+    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div>
+                <p className="font-medium text-blue-900">Sincronização Automática Ativa</p>
+                <p className="text-sm text-blue-700 mt-1">
+                    O sistema busca novas transações a cada 1 hora automaticamente.
+                    Você também pode sincronizar manualmente a qualquer momento.
+                </p>
+            </div>
+        </div>
+    </div>
+                    </div >
+                )
+}
+            </div >
+
+    {/* Benefits */ }
+    < div className = "grid grid-cols-1 md:grid-cols-3 gap-4" >
                 <div className="bg-white rounded-lg p-6 border border-gray-100">
                     <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                         <Zap className="h-6 w-6 text-blue-600" />
@@ -233,7 +256,7 @@ export function OpenFinanceConnect() {
                         Sem downloads de OFX, sem uploads, sem esquecimentos
                     </p>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }
