@@ -10,7 +10,7 @@ import { BudgetManager } from './features/budget/BudgetManager'
 import { RevenueAudit } from './features/revenue/RevenueAudit'
 import { ComplianceReport } from './features/reports/ComplianceReport'
 import { ReserveFund } from './features/reserve/ReserveFund'
-import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2 } from 'lucide-react'
+import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2, Menu } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import { LoginPage } from './pages/LoginPage'
@@ -18,16 +18,17 @@ import { MasterDashboard } from './features/dashboard/MasterDashboard'
 
 const queryClient = new QueryClient()
 
-type Tab = 'dashboard' | 'statements' | 'receipts' | 'reconciliation' | 'open-finance' | 'expenses'
+type Tab = 'dashboard' | 'budget' | 'statements' | 'receipts' | 'revenue' | 'expenses' | 'compliance' | 'reserve' | 'reconciliation'
 
-function App() {
+export default function App() {
     const { user, logout, isAuthenticated, loading } = useAuth()
-    const [activeTab, setActiveTab] = useState<string>('dashboard')
+    const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
             </div>
         )
     }
@@ -50,122 +51,166 @@ function App() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <div className="min-h-screen bg-gray-50">
-                {/* Header */}
-                <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-                    <div className="max-w-7xl mx-auto px-6 lg:px-8">
-                        <div className="flex items-center justify-between h-16">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
-                                    <Zap className="h-4 w-4 text-white" />
-                                </div>
-                                <h1 className="text-lg font-semibold text-gray-900 tracking-tight">
-                                    Audi Home
-                                </h1>
+            <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+                {/* Mobile sidebar overlay */}
+                {isSidebarOpen && (
+                    <div 
+                        className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm transition-opacity" 
+                        onClick={() => setIsSidebarOpen(false)}
+                    />
+                )}
+
+                {/* Sidebar Navigation */}
+                <nav className={cn(
+                    "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl lg:shadow-none",
+                    isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+                )}>
+                    {/* Brand */}
+                    <div className="h-20 flex items-center px-8 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                                <Zap className="h-5 w-5 text-white" />
                             </div>
-                            <div className="flex items-center gap-4">
-                                <div className="flex flex-col items-end">
-                                    <span className="text-sm font-medium text-gray-900">{user?.nome}</span>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-xs text-gray-500">
-                                                {user?.role === 'master' ? 'Gestão Global' : 'Unidade Ativa'}
-                                            </span>
-                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-600 font-bold uppercase">
-                                                {user?.role}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={logout}
-                                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 hover:text-red-600 rounded-lg transition-all"
-                                        title="Encerrar sessão"
-                                    >
-                                        <LogOut className="h-4 w-4" />
-                                        <span>Sair</span>
-                                    </button>
-                                </div>
-                            </div>
+                            <span className="text-xl font-black text-slate-900 tracking-tight">AudiCondo</span>
                         </div>
                     </div>
-                </header>
 
-                {/* Navigation Tabs */}
-                <nav className="bg-white border-b border-gray-200 sticky top-16 z-40">
-                    <div className="max-w-7xl mx-auto px-6 lg:px-8">
-                        <div className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
-                            {tabs.map((tab) => {
-                                const Icon = tab.icon
-                                const isActive = activeTab === tab.id
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={cn(
-                                            "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                                            isActive
-                                                ? "border-blue-600 text-blue-600"
-                                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                                        )}
-                                    >
-                                        <Icon className="h-4 w-4" />
-                                        {tab.label}
-                                    </button>
-                                )
-                            })}
+                    {/* Nav Links */}
+                    <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-4">Menu Principal</div>
+                        {tabs.map((tab) => {
+                            const Icon = tab.icon
+                            const isActive = activeTab === tab.id
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => {
+                                        setActiveTab(tab.id)
+                                        setIsSidebarOpen(false)
+                                    }}
+                                    className={cn(
+                                        "w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-2xl transition-all duration-200 group",
+                                        isActive
+                                            ? "bg-indigo-50 text-indigo-700"
+                                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                                    )}
+                                >
+                                    <Icon className={cn(
+                                        "h-5 w-5 transition-colors duration-200",
+                                        isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                                    )} />
+                                    {tab.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* User Profile / Logout */}
+                    <div className="p-4 border-t border-slate-100">
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex flex-col gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center border-2 border-white shadow-sm">
+                                    <span className="text-sm font-bold text-indigo-700">
+                                        {user?.nome?.substring(0,2).toUpperCase() || 'AD'}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="text-sm font-bold text-slate-900 truncate">
+                                        {user?.nome || 'Usuário'}
+                                    </span>
+                                    <span className="text-xs font-medium text-slate-500 truncate">
+                                        {user?.role === 'master' ? 'Gestão Global' : 'Síndico'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={logout}
+                                className="flex items-center justify-center gap-2 w-full py-2.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                Desconectar
+                            </button>
                         </div>
                     </div>
                 </nav>
 
-                {/* Content */}
-                <main className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-                    {activeTab === 'dashboard' && (
-                        user?.role === 'master' ? <MasterDashboard /> : <Dashboard />
-                    )}
-
-                    {activeTab === 'budget' && <BudgetManager />}
-
-                    {activeTab === 'revenue' && <RevenueAudit />}
-
-                    {activeTab === 'compliance' && <ComplianceReport />}
-
-                    {activeTab === 'reserve' && <ReserveFund />}
-
-                    {activeTab === 'statements' && (
-                        <div className="space-y-10">
-                            <TransactionHistory />
-
-                            <div className="pt-8 border-t border-gray-200">
-                                <h2 className="text-lg font-semibold text-gray-900 mb-2">Importação de Extrato</h2>
-                                <StatementUpload />
+                {/* Main Content Area */}
+                <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50/50">
+                    {/* Mobile Header (Only visible on small screens) */}
+                    <div className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-30">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center">
+                                <Zap className="h-4 w-4 text-white" />
                             </div>
+                            <span className="font-bold text-slate-900">AudiCondo</span>
                         </div>
-                    )}
+                        <button 
+                            onClick={() => setIsSidebarOpen(true)}
+                            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100"
+                        >
+                            <Menu className="h-6 w-6" />
+                        </button>
+                    </div>
 
-                    {activeTab === 'receipts' && (
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-6">Enviar Comprovante Fiscal</h2>
-                            <ReceiptUpload />
+                    {/* Scrollable Content View */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 scroll-smooth">
+                        <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {activeTab === 'dashboard' && (
+                                user?.role === 'master' ? <MasterDashboard /> : <Dashboard />
+                            )}
+                            {activeTab === 'budget' && <BudgetManager />}
+                            {activeTab === 'revenue' && <RevenueAudit />}
+                            {activeTab === 'compliance' && <ComplianceReport />}
+                            {activeTab === 'reserve' && <ReserveFund />}
+                            {activeTab === 'statements' && (
+                                <div className="space-y-10">
+                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Histórico de Transações</h2>
+                                            <p className="text-slate-500 mt-1">Acompanhe e filtre os lançamentos bancários.</p>
+                                        </div>
+                                        <TransactionHistory />
+                                    </div>
+                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Importação de Extrato</h2>
+                                            <p className="text-slate-500 mt-1">Faça upload de arquivos OFX ou remessas.</p>
+                                        </div>
+                                        <StatementUpload />
+                                    </div>
+                                </div>
+                            )}
+                            {activeTab === 'receipts' && (
+                                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Auditoria Fiscal Inteligente</h2>
+                                        <p className="text-slate-500 mt-1">Faça upload de Notas Fiscais para validação contra RFB.</p>
+                                    </div>
+                                    <ReceiptUpload />
+                                </div>
+                            )}
+                            {activeTab === 'expenses' && (
+                                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                                    <div className="mb-6">
+                                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Auditoria de Despesas</h2>
+                                        <p className="text-slate-500 mt-1">Gestão inteligente de conformidade de saídas.</p>
+                                    </div>
+                                    <ExpenseAudit />
+                                </div>
+                            )}
+                            {activeTab === 'reconciliation' && (
+                                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                                    <div className="mb-6">
+                                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Central de Reconciliação</h2>
+                                        <p className="text-slate-500 mt-1">Vincule os extratos processados às despesas auditadas.</p>
+                                    </div>
+                                    <ReconciliationQueue />
+                                </div>
+                            )}
                         </div>
-                    )}
-
-                    {activeTab === 'expenses' && (
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-6">Auditoria de Despesas</h2>
-                            <ExpenseAudit />
-                        </div>
-                    )}
-
-                    {activeTab === 'reconciliation' && (
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-6">Reconciliação (Comprovante x Banco)</h2>
-                            <ReconciliationQueue />
-                        </div>
-                    )}
+                    </div>
                 </main>
             </div>
         </QueryClientProvider>
     )
 }
-
-export default App

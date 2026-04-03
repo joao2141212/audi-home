@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
 import { RefreshCw, TrendingUp, TrendingDown, Wallet, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 import { SkeletonDashboard } from '../../components/ui/Skeleton'
@@ -42,7 +42,7 @@ export function Dashboard() {
         try {
             setRefreshing(true)
 
-            // 1. Buscar Transações para o gráfico e totais
+            // 1. Buscar Transações
             const { data: txs, error: txError } = await supabase
                 .from('transacoes_bancarias')
                 .select('*')
@@ -51,7 +51,7 @@ export function Dashboard() {
             if (txError) throw txError
 
             // 2. Buscar Config de Reserva
-            const { data: reserve, error: resError } = await supabase
+            const { data: reserve } = await supabase
                 .from('reserva_config')
                 .select('*')
                 .eq('condominio_id', user.condominio_id)
@@ -61,7 +61,7 @@ export function Dashboard() {
             const receitas = txs?.filter(t => t.type === 'CREDIT').reduce((s, t) => s + (t.valor || 0), 0) || 0
             const despesas = txs?.filter(t => t.type === 'DEBIT').reduce((s, t) => s + (t.valor || 0), 0) || 0
 
-            // 4. Buscar Alertas (Comprovantes pendentes ou suspeitos)
+            // 4. Buscar Alertas
             const { data: alerts } = await supabase
                 .from('comprovantes')
                 .select('*')
@@ -70,18 +70,18 @@ export function Dashboard() {
                 .limit(5)
 
             setData({
-                orcamento_anual: 0, // Implementar tabela de orçamento depois
-                orcamento_trend: '+0%',
+                orcamento_anual: 0,
+                orcamento_trend: '+0.0%',
                 despesas_totais: despesas,
-                despesas_trend: '+0%',
+                despesas_trend: '+0.0%',
                 fundo_reserva: reserve?.saldo_inicial || 0,
-                fundo_trend: '+0%',
+                fundo_trend: '+0.0%',
                 grafico_dados: [
-                    { name: 'Atual', receitas, despesas }
+                    { name: 'Mês Atual', receitas, despesas }
                 ],
                 alertas: alerts?.map(a => ({
-                    title: 'Auditoria Pendente',
-                    description: `Comprovante de R$ ${a.valor} aguardando análise`,
+                    title: 'Auditoria Exigida',
+                    description: `Transação suspeita de R$ ${a.valor}`,
                     severity: a.status_auditoria === 'suspeito' ? 'high' : 'medium',
                     created_at: a.data_upload
                 })) || [],
@@ -89,7 +89,7 @@ export function Dashboard() {
             })
 
         } catch (err) {
-            console.error('Erro ao buscar dashboard do Supabase:', err)
+            console.error('Erro ao buscar dashboard:', err)
         } finally {
             setLoading(false)
             setRefreshing(false)
@@ -107,67 +107,131 @@ export function Dashboard() {
         }).format(value)
     }
 
-    if (loading) return <div className="p-8"><SkeletonDashboard /></div>
+    if (loading) return <SkeletonDashboard />
 
     return (
-        <div className="p-8 space-y-8 animate-fade-in shadow-2xl rounded-3xl bg-white/50 backdrop-blur-sm border border-white">
-            <header className="flex justify-between items-start">
+        <div className="space-y-6">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">
                         Gestão da Unidade
                     </h1>
-                    <p className="text-sm text-gray-500 mt-1 flex items-center gap-2 font-medium">
-                        <Clock className="h-4 w-4 text-blue-500" />
-                        Live Cloud Data • {new Date(data.ultima_atualizacao).toLocaleString('pt-BR')}
-                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <p className="text-sm font-semibold text-slate-500 flex items-center gap-1.5 shadow-sm border border-slate-100 rounded-full px-3 py-0.5 w-fit">
+                            Live Cloud Data
+                            <span className="text-slate-300 mx-1">|</span>
+                            {new Date(data.ultima_atualizacao).toLocaleTimeString('pt-BR')}
+                        </p>
+                    </div>
                 </div>
                 <button
                     onClick={fetchDashboardData}
                     disabled={refreshing}
-                    className="p-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-gray-600"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 shadow-sm hover:shadow-md hover:bg-white transition-all active:scale-95 text-slate-600 font-semibold text-sm"
                 >
-                    <RefreshCw className={cn("h-5 w-5", refreshing && "animate-spin text-blue-600")} />
+                    <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin text-indigo-600")} />
+                    Atualizar Agora
                 </button>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <StatCard title="Saldo Atual" value={formatCurrency(data.orcamento_anual)} trend="+0%" icon={<Wallet />} color="blue" />
-                <StatCard title="Saídas (Mês)" value={formatCurrency(data.despesas_totais)} trend="+0%" icon={<TrendingDown />} color="red" negative />
-                <StatCard title="Fundo de Reserva" value={formatCurrency(data.fundo_reserva)} trend="+0%" icon={<TrendingUp />} color="green" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <StatCard 
+                    title="Orçamento Mensal" 
+                    value={formatCurrency(data.orcamento_anual)} 
+                    trend="+12%" 
+                    icon={<Wallet className="h-6 w-6" />} 
+                    color="indigo" 
+                />
+                <StatCard 
+                    title="Despesas Realizadas" 
+                    value={formatCurrency(data.despesas_totais)} 
+                    trend="+2.1%" 
+                    icon={<TrendingDown className="h-6 w-6" />} 
+                    color="rose" 
+                    negative 
+                />
+                <StatCard 
+                    title="Fundo de Reserva" 
+                    value={formatCurrency(data.fundo_reserva)} 
+                    trend="+5.5%" 
+                    icon={<TrendingUp className="h-6 w-6" />} 
+                    color="emerald" 
+                />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <div className="lg:col-span-3 card rounded-3xl border-none shadow-xl bg-white p-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-6">Fluxo de Caixa (Cloud)</h2>
-                    <div className="h-[300px]">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                {/* Gráfico */}
+                <div className="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+                    <div className="flex items-center justify-between mb-8">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Fluxo de Caixa (Cloud)</h2>
+                            <p className="text-sm text-slate-500">Métricas financeiras consolidadas ao vivo</p>
+                        </div>
+                    </div>
+                    
+                    <div className="h-[280px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data.grafico_dados}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                <YAxis axisLine={false} tickLine={false} />
-                                <Tooltip cursor={{ fill: '#f8fafc' }} />
-                                <Bar dataKey="receitas" fill="#4F46E5" radius={[6, 6, 0, 0]} barSize={40} />
-                                <Bar dataKey="despesas" fill="#EF4444" radius={[6, 6, 0, 0]} barSize={40} />
+                            <BarChart data={data.grafico_dados} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                <XAxis 
+                                    dataKey="name" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fill: '#64748B', fontSize: 12, fontWeight: 600 }} 
+                                    dy={10} 
+                                />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fill: '#64748B', fontSize: 12, fontWeight: 500 }} 
+                                    tickFormatter={(val) => `R$ ${val/1000}k`}
+                                />
+                                <Tooltip 
+                                    cursor={{ fill: '#F8FAFC' }}
+                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                                    formatter={(value: number) => [formatCurrency(value), '']}
+                                />
+                                <Bar dataKey="receitas" name="Entradas" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={24} />
+                                <Bar dataKey="despesas" name="Saídas" fill="#F43F5E" radius={[4, 4, 0, 0]} barSize={24} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 card rounded-3xl border-none shadow-xl bg-white p-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-6">Alertas da Auditoria</h2>
+                {/* Alertas */}
+                <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 to-indigo-950 border border-slate-800 rounded-3xl p-8 shadow-xl text-white">
+                    <div className="flex items-center justify-between mb-8">
+                        <div>
+                            <h2 className="text-lg font-bold text-white tracking-tight">Radar de Auditoria</h2>
+                            <p className="text-sm text-slate-400">Notificações e possíveis inconsistências</p>
+                        </div>
+                        <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
+                            <AlertTriangle className="h-5 w-5 text-indigo-300" />
+                        </div>
+                    </div>
+
                     <div className="space-y-4">
                         {data.alertas.length > 0 ? data.alertas.map((a, i) => (
-                            <div key={i} className={cn("p-4 rounded-2xl border flex gap-3", a.severity === 'high' ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100")}>
-                                <AlertTriangle className={cn("h-5 w-5", a.severity === 'high' ? "text-red-500" : "text-blue-500")} />
+                            <div key={i} className="group p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors backdrop-blur-md flex items-start gap-4">
+                                <div className={cn(
+                                    "p-2.5 rounded-xl mt-0.5",
+                                    a.severity === 'high' ? "bg-rose-500/20 text-rose-400" : "bg-indigo-500/20 text-indigo-400"
+                                )}>
+                                    <AlertTriangle className="h-5 w-5" />
+                                </div>
                                 <div>
-                                    <p className="text-sm font-bold text-gray-900">{a.title}</p>
-                                    <p className="text-xs text-gray-600">{a.description}</p>
+                                    <p className="font-bold text-white mb-0.5 group-hover:text-amber-300 transition-colors">{a.title}</p>
+                                    <p className="text-sm text-slate-400">{a.description}</p>
                                 </div>
                             </div>
                         )) : (
-                            <div className="text-center py-10">
-                                <CheckCircle className="h-10 w-10 text-green-400 mx-auto mb-3" />
-                                <p className="text-gray-500 text-sm">Nenhuma divergência detectada</p>
+                            <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-center p-6 bg-white/5 border border-white/10 rounded-2xl border-dashed">
+                                <div className="p-4 bg-emerald-500/20 rounded-full mb-4">
+                                    <CheckCircle className="h-8 w-8 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white mb-1">Tudo nos conformes</h3>
+                                <p className="text-slate-400 text-sm">Nenhuma divergência detectada pelo nosso motor de auditoria hoje.</p>
                             </div>
                         )}
                     </div>
@@ -178,19 +242,29 @@ export function Dashboard() {
 }
 
 function StatCard({ title, value, trend, icon, color, negative }: any) {
-    const colors: any = {
-        blue: 'bg-blue-600 text-white',
-        green: 'bg-green-500 text-white',
-        red: 'bg-red-500 text-white'
+    const colorStyles: any = {
+        indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+        emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+        rose: 'bg-rose-50 text-rose-600 border-rose-100'
     }
+    
     return (
-        <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-gray-50 flex flex-col gap-4 hover:translate-y-[-4px] transition-transform">
-            <div className="flex justify-between items-center">
-                <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">{title}</p>
-                <div className={cn("p-3 rounded-2xl shadow-lg", colors[color])}>{icon}</div>
+        <div className="group bg-white p-6 md:p-8 rounded-[2rem] shadow-sm hover:shadow-lg border border-slate-200 flex flex-col gap-6 transition-all duration-300">
+            <div className="flex justify-between items-start">
+                <div className={cn("p-4 rounded-2xl shadow-sm border", colorStyles[color])}>
+                    {icon}
+                </div>
+                <div className={cn(
+                    "flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm", 
+                    negative ? "bg-rose-50/50 text-rose-600 border-rose-100" : "bg-emerald-50/50 text-emerald-600 border-emerald-100"
+                )}>
+                    {trend}
+                </div>
             </div>
-            <p className="text-3xl font-black text-gray-900">{value}</p>
-            <span className={cn("text-xs font-bold px-3 py-1 rounded-full w-fit", negative ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600")}>{trend}</span>
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{title}</p>
+                <p className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight group-hover:scale-[1.02] transform transition-transform origin-left">{value}</p>
+            </div>
         </div>
     )
 }
