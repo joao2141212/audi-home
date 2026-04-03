@@ -27,3 +27,6 @@ yarn-error.log*
 
 # OS files
 .DS_Store
+
+# Local Netlify folder
+.netlify

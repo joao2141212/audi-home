@@ -1,0 +1,40 @@
+[stm-text v2.5.1] postmortem-tela-branca
+μ/meta=type:postmortem,date:2026-04-03,status:resolvido
+
+# POST-MORTEM: Tela Branca em Producao (auditcondo.com)
+
+## Causas Raiz (3 simultâneas)
+
+### CAUSA 1: `throw` fatal no módulo Supabase
+- **Arquivo:** `frontend/src/lib/supabase.ts`
+- **Problema:** O código tinha `throw new Error()` na raiz do módulo caso as env vars VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não existissem. Em produção (Netlify), essas variáveis não estavam configuradas → o módulo explodia ao ser carregado → React não conseguia nem montar → tela branca 100%.
+- **Correção:** Substituir `throw` por `console.warn` + valores placeholder para o app não crashar no load. O erro de login fica visível no console, não derruba o app.
+- **Regra:** NUNCA usar `throw` na raiz de um módulo (`lib/`) que é importado em todo o app. Use apenas dentro de funções.
+
+### CAUSA 2: `netlify.toml` movido para `legado/` acidentalmente
+- **Problema:** Durante a limpeza de arquivos legados com `git mv`, o `netlify.toml` foi para `legado/netlify.toml`. Sem esse arquivo na raiz do repo, o Netlify não sabia como fazer o build → builds automáticos via push no GitHub não funcionavam mais.
+- **Correção:** Restaurar `netlify.toml` na raiz do projeto.
+- **Regra:** O `netlify.toml` DEVE ficar sempre na raiz do repositório. Nunca incluir em movimentações de limpeza.
+
+### CAUSA 3: Env vars do Netlify nunca configuradas
+- **Problema:** As variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` só existiam no arquivo `.env` local. O Netlify não tem acesso ao `.env` do desenvolvedor — cada variável precisa ser registrada explicitamente no ambiente de CI/CD deles.
+- **Correção:** `netlify link` + `netlify env:set VITE_SUPABASE_URL ...` + `netlify env:set VITE_SUPABASE_ANON_KEY ...`
+- **Regra:** Em todo novo projeto Vite + Netlify, SEMPRE rodar os dois comandos abaixo ANTES do primeiro deploy:
+  ```
+  netlify link
+  netlify env:set VITE_SUPABASE_URL "https://SEU_PROJECT.supabase.co"
+  netlify env:set VITE_SUPABASE_ANON_KEY "SEU_ANON_KEY"
+  netlify deploy --build --prod
+  ```
+
+## Checklist de Deploy (obrigatório a cada novo projeto)
+- [ ] `netlify.toml` na RAIZ do repo com base, publish e redirects
+- [ ] Env vars configuradas via `netlify env:set` (não confiar só no .env local)
+- [ ] Nenhum `throw` fora de funções em arquivos `lib/`
+- [ ] Build local válido antes do push: `npm run build` deve terminar com exit 0
+- [ ] `netlify link` feito uma vez por projeto para vincular CLI ao site
+
+## Ferramentas para Debug Rápido
+- Ver env vars do projeto: `netlify env:list`
+- Forçar redeploy com build: `netlify deploy --build --prod`
+- Ver logs do deploy: `netlify open:admin`

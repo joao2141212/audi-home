@@ -147,7 +147,7 @@ export const api = {
         // 1. Atualizar transação para conciliada
         const { error: txError } = await supabase
             .from('transacoes_bancarias')
-            .update({ conciliado: true, status_reconciliacao: 'reconciliado' })
+            .update({ conciliado: true })
             .eq('id', transactionId)
 
         if (txError) throw txError

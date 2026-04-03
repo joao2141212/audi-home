@@ -1,0 +1,17 @@
+[stm-text v2.5.1] auditcondo-credenciais
+μ/meta=type:credenciais,date:2026-04-03,status:active
+
+# CREDENCIAIS DE ACESSO - PRODUÇÃO (https://auditcondo.com)
+
+## 1. Supabase (Ambiente Cloud)
+- **Project URL:** https://nziggqeoeqaenugixtwr.supabase.co
+- **Anon Key:** sb_publishable_ncad_WpHrzu4nhwkMCgrog_fnZpHIkM
+
+## 2. Usuários de Teste E2E (Multi-Tenant RLS)
+
+### Síndico do Condomínio Piloto 1 - Residencial Paulista
+Este usuário foi criado com sucesso no Supabase GoTrue e vinculado à tabela `perfis`. O RLS garante que ele *apenas* tenha acesso aos dados do Condomínio Piloto 1 (ID: b8583127-cce0-417c-8f78-e5a1bb2f1cd9).
+
+- **E-mail:** `sindico.piloto1@audi.condo`
+- **Senha:** `AudiCondo2026MasterPass!`
+- **Role:** `sindico`

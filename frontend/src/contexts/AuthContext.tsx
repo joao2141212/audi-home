@@ -26,8 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // On mount: restore session from Supabase GoTrue (the real auth layer)
     useEffect(() => {
+        // Safety net: never show spinner for more than 5 seconds
+        const timeout = setTimeout(() => {
+            console.warn('[AudiCondo] Auth timeout - forçando loading=false')
+            setLoading(false)
+        }, 5000)
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                clearTimeout(timeout)
+                console.log('[AudiCondo] Auth event:', event, !!session)
                 if (session?.user) {
                     await loadProfile(session.user.id, session.user.email ?? '')
                 } else {
@@ -36,7 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setLoading(false)
             }
         )
-        return () => subscription.unsubscribe()
+        return () => {
+            clearTimeout(timeout)
+            subscription.unsubscribe()
+        }
     }, [])
 
     const loadProfile = async (userId: string, email: string) => {
