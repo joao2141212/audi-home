@@ -1,6 +1,8 @@
 [stm-text v2.5.1] auditcondo-next-steps
-μ/meta=type:roadmap,date:2026-04-03,status:active
+μ/meta=type:roadmap,date:2026-04-03,status:active,production_url:https://auditcondo.com
 σ/seq=1_db→2_edgefn→3_frontend→4_test→5_deploy
+
+# AMBIENTE DE PRODUÇÃO DA APLICAÇÃO: https://auditcondo.com
 
 STEP 1: DB_PUSH (blocker: senha postgres)
   1a=user_provides DB_PASSWORD

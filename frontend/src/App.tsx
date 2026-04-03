@@ -10,7 +10,7 @@ import { BudgetManager } from './features/budget/BudgetManager'
 import { RevenueAudit } from './features/revenue/RevenueAudit'
 import { ComplianceReport } from './features/reports/ComplianceReport'
 import { ReserveFund } from './features/reserve/ReserveFund'
-import { FileText, Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2 } from 'lucide-react'
+import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2 } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import { LoginPage } from './pages/LoginPage'
@@ -65,7 +65,7 @@ function App() {
                             </div>
                             <div className="flex items-center gap-4">
                                 <div className="flex flex-col items-end">
-                                    <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+                                    <span className="text-sm font-medium text-gray-900">{user?.nome}</span>
                                     <div className="flex items-center gap-1.5">
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-xs text-gray-500">
