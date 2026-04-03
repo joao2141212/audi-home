@@ -23,7 +23,6 @@ export function ExpenseAudit() {
             {selectedTransaction && (
                 <ExpenseAuditForm
                     transaction={selectedTransaction}
-                    condominioId={condominioId}
                     onClose={() => setSelectedTransaction(null)}
                 />
             )}

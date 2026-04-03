@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { FileText, RefreshCw, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { SkeletonTable } from '../../components/ui/Skeleton'
+import { api } from '../../lib/api'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface Transaction {
     id: string
@@ -13,41 +15,32 @@ interface Transaction {
 }
 
 export function TransactionHistory() {
+    const { user } = useAuth()
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
-    const condominioId = '00000000-0000-0000-0000-000000000001'
 
     const fetchTransactions = async () => {
+        if (!user?.condominio_id) {
+            setLoading(false)
+            return
+        }
         setLoading(true)
         try {
-            const response = await fetch(`http://localhost:8000/api/v1/pluggy/sync-transactions/${condominioId}`)
-            if (response.ok) {
-                const data = await response.json()
-                const mapped: Transaction[] = (data.transactions || []).map((tx: any) => ({
-                    id: tx.id,
-                    description: tx.description,
-                    amount: tx.amount,
-                    date: tx.date.split('T')[0],
-                    type: tx.amount > 0 ? 'CREDIT' : 'DEBIT',
-                    category: tx.category
-                }))
-                setTransactions(mapped)
-            } else {
-                throw new Error('API offline')
-            }
-        } catch {
-            // Fallback demo data
-            setTransactions([
-                { id: 'tx_001', description: 'CONDOMINIO EDIFICIO SOLAR - UNID 101', amount: 850.00, date: '2025-12-30', type: 'CREDIT', category: 'Receita' },
-                { id: 'tx_002', description: 'MANUTENCAO ELEVADOR ATLAS SCHINDLER', amount: -1200.00, date: '2025-12-28', type: 'DEBIT', category: 'Manutenção' },
-                { id: 'tx_003', description: 'ENEL DISTRIBUICAO - CONTA LUZ', amount: -3450.20, date: '2025-12-25', type: 'DEBIT', category: 'Contas Fixas' },
-                { id: 'tx_004', description: 'CONDOMINIO EDIFICIO SOLAR - UNID 202', amount: 850.00, date: '2025-12-22', type: 'CREDIT', category: 'Receita' },
-                { id: 'tx_005', description: 'LIMPEZA E CONSERVACAO LTDA', amount: -2800.00, date: '2025-12-20', type: 'DEBIT', category: 'Serviços' },
-                { id: 'tx_006', description: 'CONDOMINIO EDIFICIO SOLAR - UNID 303', amount: 850.00, date: '2025-12-18', type: 'CREDIT', category: 'Receita' },
-                { id: 'tx_007', description: 'SABESP - AGUA E ESGOTO', amount: -1890.50, date: '2025-12-15', type: 'DEBIT', category: 'Contas Fixas' },
-            ])
+            const data = await api.getTransactions(user.condominio_id)
+            const mapped: Transaction[] = (data || []).map((tx: any) => ({
+                id: tx.id.toString(),
+                description: tx.descricao,
+                amount: tx.valor,
+                date: tx.data_transacao,
+                type: tx.type === 'CREDIT' ? 'CREDIT' : 'DEBIT',
+                category: tx.category || 'Geral'
+            }))
+            setTransactions(mapped)
+        } catch (err) {
+            console.error('Erro ao buscar transações:', err)
+            // Empty state on error, no mocks effectively
+            setTransactions([])
         } finally {
-            // Minimum loading time for polish
             setTimeout(() => setLoading(false), 600)
         }
     }
@@ -84,7 +77,7 @@ export function TransactionHistory() {
                         Extrato Consolidado
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                        Movimentações via Open Finance
+                        Movimentações Bancárias
                     </p>
                 </div>
                 <button
@@ -128,50 +121,60 @@ export function TransactionHistory() {
 
             {/* Table */}
             <div className="card overflow-hidden">
-                <table className="w-full">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Descrição</th>
-                            <th>Categoria</th>
-                            <th className="text-right">Valor</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {transactions.map((tx, index) => (
-                            <tr
-                                key={tx.id}
-                                className="animate-fade-in"
-                                style={{ animationDelay: `${index * 50}ms` }}
-                            >
-                                <td className="font-medium text-gray-900">
-                                    {new Date(tx.date).toLocaleDateString('pt-BR')}
-                                </td>
-                                <td>
-                                    <span className="font-medium text-gray-900">{tx.description}</span>
-                                </td>
-                                <td>
-                                    <span className="badge badge-info">
-                                        {tx.category || 'Outros'}
-                                    </span>
-                                </td>
-                                <td className="text-right">
-                                    <div className={cn(
-                                        "flex items-center justify-end gap-1 font-semibold",
-                                        tx.type === 'CREDIT' ? "text-emerald-600" : "text-rose-600"
-                                    )}>
-                                        {tx.type === 'CREDIT' ? (
-                                            <ArrowUpRight className="h-3.5 w-3.5" />
-                                        ) : (
-                                            <ArrowDownLeft className="h-3.5 w-3.5" />
-                                        )}
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(tx.amount))}
-                                    </div>
-                                </td>
+                {transactions.length === 0 ? (
+                    <div className="p-12 text-center text-gray-500">
+                        <FileText className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                        <h4 className="text-lg font-medium text-gray-900">Nenhuma transação encontrada</h4>
+                        <p className="text-sm mt-1">
+                            O banco de dados está vazio. Importe um extrato para começar.
+                        </p>
+                    </div>
+                ) : (
+                    <table className="w-full">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th className="text-right">Valor</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {transactions.map((tx, index) => (
+                                <tr
+                                    key={tx.id}
+                                    className="animate-fade-in"
+                                    style={{ animationDelay: `${index * 50}ms` }}
+                                >
+                                    <td className="font-medium text-gray-900">
+                                        {new Date(tx.date).toLocaleDateString('pt-BR')}
+                                    </td>
+                                    <td>
+                                        <span className="font-medium text-gray-900">{tx.description}</span>
+                                    </td>
+                                    <td>
+                                        <span className="badge badge-info">
+                                            {tx.category || 'Outros'}
+                                        </span>
+                                    </td>
+                                    <td className="text-right">
+                                        <div className={cn(
+                                            "flex items-center justify-end gap-1 font-semibold",
+                                            tx.type === 'CREDIT' ? "text-emerald-600" : "text-rose-600"
+                                        )}>
+                                            {tx.type === 'CREDIT' ? (
+                                                <ArrowUpRight className="h-3.5 w-3.5" />
+                                            ) : (
+                                                <ArrowDownLeft className="h-3.5 w-3.5" />
+                                            )}
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(tx.amount))}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
         </div>
     )

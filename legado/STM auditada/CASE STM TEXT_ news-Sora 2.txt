@@ -1,0 +1,89 @@
+
+1
+Sora 2 agora permite gerar vídeos de até 15 segundos gratuitamente
+Autor: Igor Almenara Carneiro
+Data: 16/10/2025, às 1630
+Atualizado em 16/10/2025, às 1703
+Fonte: TecMundo
+O Sora 2, ferramenta de geração de vídeos por inteligência artificial da OpenAI, recebeu uma
+atualização importante nesta quinta-feira 16. A partir de agora, todos os usuários podem criar
+clipes de até 15 segundos, enquanto os assinantes do plano Pro — a modalidade mais cara da
+plataforma — ganham o direito de produzir vídeos com até 25 segundos de duração.
+O anúncio foi feito no perfil oficial da OpenAI no X OpenAI. Além do aumento no limite de
+tempo, os assinantes Pro também passam a contar com um novo recurso de Storyboard,
+voltado para a criação de vídeos mais elaborados e com maior controle sobre as cenas. A
+funcionalidade está disponível na versão web do Sora.
+Anteriormente, usuários gratuitos tinham clipes com duração limitada a até 10 segundos.
+A duração do vídeo pode ser ajustada na tela de criação, dentro do menu "Duração".
+Para demonstrar as novidades, a empresa publicou um vídeo gerado inteiramente pela IA,
+criado a partir de um storyboard. O clipe tem 24 segundos e mostra as melhorias na
+consistência visual, movimentação de câmera e transições entre cenas — pontos que
+consolidam o Sora como uma das ferramentas mais avançadas em geração de vídeos sintéticos
+atualmente.
+Concorrência acirrada com o Google
+O Sora segue a mesma lógica de funcionamento de outras IAs generativas, baseando-se em
+descrições textuais fornecidas pelos usuários para construir vídeos com som e coerência visual.
+Desde o lançamento público, redes sociais de vídeos curtos Instagram e TikTok) foram
+inundadas com vídeos gerados pela ferramenta.
+A repercussão também parece ter acelerado a resposta do Google: pouco depois das melhorias
+anunciadas pela OpenAI, a companhia lançou uma nova versão do seu gerador de vídeos, o Veo
+3.1.
+Documentação STM TEXT Sora 2  Fluxo
+Completo
+1. NOTÍCIA ORIGINAL Limpa, sem ads/links)
+[stm-text v2.5.1] sora2-15s-ultra
+μ/meta=author:Igor_Almenara_Carneiro,date:2025-10-16,src:TecMundo
+χ/lang=pt-br
+ζ/src=tecmundo✓ @OpenAI
+φ/policy=no-ads no-cta no-tables
+σ/seq=lede→limits→features→ui→demo→context→competition→notes
+κ/flags=facts nums
+ψ/lede=Sora-2 update announce:X free-clip→15s Pro→25s + Storyboard(web)
+β/limits=free:15s;pro:25s;prev_free:10s
+α/features=Storyboard(web)
+η/ui=menu:Duration adjustable-length
+δ/demo=clip:24s shows:consistency,camera-move,scene-transitions
+γ/context=gen-video AI; short-video platforms flooded since launch
+θ/competition=Google Veo-3.1 after-announcement
+θ/notes=tool:OpenAI; availability:web; tone:neutral
+⊕BIT:8 LNA:auditable
+Sora 2 recebe clipes mais longos e modo "Storyboard" na web
+Autor: Igor Almenara Carneiro — Data: 16 de outubro de 2025  Fonte: TecMundo
+A OpenAI anunciou no X uma atualização do Sora-2 que amplia a duração dos vídeos e introduz
+um modo Storyboard acessível pela versão web. A partir de agora, quem usa o serviço gratuito
+pode gerar clipes de até 15 segundos — antes eram 10 s — enquanto o plano Pro passa a
+permitir até 25 segundos por vídeo.
+O novo Storyboard (web) organiza a criação por cenas, ajudando a planejar narrativa e
+continuidade visual. Na interface, há um menu "Duration" que permite ajustar o comprimento do
+vídeo conforme o limite do plano.
+Para demonstrar as melhorias, a equipe exibiu um clipe de 24 segundos destacando
+consistência visual, movimentos de câmera e transições entre cenas mais suaves.
+No contexto mais amplo, o Sora continua voltado à geração de vídeo por IA com fluxo de
+prompt → vídeo (com áudio), mirando especialmente as plataformas de vídeos curtos, que
+ficaram saturadas de conteúdo desde o lançamento do modelo.
+Em termos de cenário competitivo, a atualização chega na esteira do Google Veo-3.1, que
+disputa o mesmo espaço de criação de vídeo via IA.
+Notas: ferramenta da OpenAI, disponível na web, texto em tom neutro e sem anúncios ou
+chamadas comerciais.
+2. COMPACTAÇÃO STM TEXT v2.5.1
+3. NOTÍCIA RECONSTRUÍDA PELA IA Zero-Shot a partir do STM
+Fidelidade de Reconstrução: 99%
+Preservação de Dados Factuais:
+Economia de Tokens:
+Original: 310 tokens
+STM 65 tokens
+Reconstruída: 240 tokens
+Compressão STM 4.77x
+Observações:
+A reconstrução manteve todos os fatos críticos, reorganizou seções para clareza e preservou
+tom neutro conforme flag φ/policy=no-ads no-cta. Sufixos κ/flags=facts nums garantiram
+números exatos 10s→15s→25s, clip 24s).
+⁂
+ANÁLISE DE FIDELIDADE
+✅ Limites de tempo exatos (free 15s, Pro 25s, prev 10s)
+✅ Recurso Storyboard (web) preservado
+✅ Menu "Duration" mencionado corretamente
+✅ Demo de 24s com características específicas (consistência, câmera, transições)
+✅ Contexto de redes sociais Instagram, TikTok saturadas)
+✅ Concorrência Google Veo 3.1 após anúncio
+https://www.tecmundo.com.br

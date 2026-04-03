@@ -1,0 +1,7 @@
+[stm-text v2.5.1] system-rules
+μ/meta=type:rules,date:2026-04-03,status:active
+
+RULE_BROWSER_OVERRIDE:
+  desc: "O ambiente local do usuário possui restrições ao agente automatizado no Browser."
+  condition: "Sempre que for usar o browser ou browser_subagent e encontrar um bloqueio (login falhando misteriosamente, crash, anti-bot, ou não conseguir clicar), PARE IMEDIATAMENTE."
+  action: "Não tente contornar o bloqueio repetitivamente. Avise o usuário e devolva a responsabilidade para darmos andamento juntos."

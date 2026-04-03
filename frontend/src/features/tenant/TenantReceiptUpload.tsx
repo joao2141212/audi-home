@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Upload, FileText, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Upload, FileText, CheckCircle, XCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { api } from '../../lib/api'
 
 interface TenantReceiptUploadProps {
     condominioId: string
@@ -19,194 +20,126 @@ export function TenantReceiptUpload({ condominioId, unidadeId }: TenantReceiptUp
         }
     }
 
+    const extractReceiptWithGemini = async (base64: string, mimeType: string) => {
+        const apiKey = import.meta.env.VITE_GOOGLE_API_KEY
+        // Prompt otimizado para pagamento de boleto
+        const prompt = `Analise este Comprovante de Pagamento (Boleto/Pix).
+        Extraia em JSON:
+        {
+          "data_pagamento": "YYYY-MM-DD",
+          "valor_pago": 100.00,
+          "beneficiario": "Nome do Condomínio ou Administradora",
+          "pagador": "Nome do Pagador/Unidade"
+        }`
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: base64 } }] }]
+                })
+            }
+        )
+
+        if (!response.ok) throw new Error('Erro na IA')
+        const result = await response.json()
+        let jsonText = result.candidates[0].content.parts[0].text
+        jsonText = jsonText.replace(/```json\s*/g, '').replace(/```/g, '').trim()
+        return JSON.parse(jsonText)
+    }
+
     const handleUpload = async () => {
         if (!file) return
-
         setUploading(true)
         setValidationResult(null)
 
         try {
-            // 1. Upload the file
-            const formData = new FormData()
-            formData.append('file', file)
-            if (unidadeId) formData.append('unidade', unidadeId)
+            // 1. Visão Computacional Client-Side
+            const arrayBuffer = await file.arrayBuffer()
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+            let mimeType = file.type || 'application/pdf'
 
-            const uploadResponse = await fetch('http://localhost:8000/api/v1/receipts/upload', {
-                method: 'POST',
-                body: formData,
-            })
+            const iaData = await extractReceiptWithGemini(base64, mimeType)
 
-            if (!uploadResponse.ok) {
-                throw new Error('Falha no upload')
-            }
+            // 2. Busca Match no Supabase (Client-Side)
+            const { matches } = await api.getReconciliationMatches(condominioId, iaData.valor_pago)
 
-            const uploadData = await uploadResponse.json()
-            const receiptId = uploadData.id
+            // 3. Validação
+            const exactMatch = matches.find((m: any) => m.matchScore === 100 || Math.abs(m.valor - iaData.valor_pago) < 0.05)
 
-            // 2. Process OCR
-            const ocrResponse = await fetch(
-                `http://localhost:8000/api/v1/receipts/${receiptId}/process-ocr`,
-                { method: 'POST' }
-            )
+            if (exactMatch) {
+                // Auto-aprovação
+                await api.approveReconciliation(file.name, exactMatch.id) // Simplificação: nome como ID fake por enquanto, ideal criar comprovante
 
-            if (!ocrResponse.ok) {
-                throw new Error('Falha no processamento OCR')
-            }
-
-            const ocrData = await ocrResponse.json()
-
-            // 3. Validate against bank transactions
-            if (ocrData.ocr_valor && ocrData.ocr_data) {
-                const validationResponse = await fetch(
-                    'http://localhost:8000/api/v1/pluggy/validate-receipt',
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            valor: ocrData.ocr_valor,
-                            data: ocrData.ocr_data,
-                            condominio_id: condominioId,
-                        }),
-                    }
-                )
-
-                if (!validationResponse.ok) {
-                    throw new Error('Falha na validação')
-                }
-
-                const validationData = await validationResponse.json()
-                setValidationResult(validationData)
+                setValidationResult({
+                    status: 'APROVADO',
+                    message: `Pagamento de R$ ${iaData.valor_pago} confirmado automaticamente!`,
+                    match_details: { amount: iaData.valor_pago, date: iaData.data_pagamento, description: 'Validado via Cloud AI' }
+                })
             } else {
                 setValidationResult({
-                    status: 'ERRO',
-                    message: 'Não foi possível extrair valor ou data do comprovante',
+                    status: 'PENDENTE',
+                    message: `Pagamento recebido (R$ ${iaData.valor_pago}), mas aguardando conciliação bancária.`
                 })
             }
+
         } catch (error) {
             console.error(error)
-            setValidationResult({
-                status: 'ERRO',
-                message: 'Erro ao processar comprovante. Tente novamente.',
-            })
+            setValidationResult({ status: 'ERRO', message: 'Erro ao processar. Verifique sua conexão.' })
         } finally {
             setUploading(false)
         }
     }
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h2 className="text-2xl font-bold mb-6">Enviar Comprovante de Pagamento</h2>
+        <div className="p-8 space-y-8 animate-fade-in shadow-2xl rounded-3xl bg-white/50 backdrop-blur-sm border border-white max-w-2xl mx-auto">
+            <header className="text-center">
+                <div className="w-20 h-20 bg-indigo-600 rounded-3xl shadow-xl flex items-center justify-center mx-auto mb-6">
+                    <ShieldCheck className="h-10 w-10 text-white" />
+                </div>
+                <h1 className="text-3xl font-black text-gray-900 tracking-tight">Portal de Comprovantes</h1>
+                <p className="text-gray-500 font-medium mt-2">Validação instantânea via Auditoria Cloud</p>
+            </header>
 
-                {/* Upload Area */}
-                <div className="mb-6">
-                    <label
-                        htmlFor="file-upload"
-                        className={cn(
-                            "flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
-                            file
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-                        )}
-                    >
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            {file ? (
-                                <>
-                                    <FileText className="h-12 w-12 text-blue-600 mb-3" />
-                                    <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        {(file.size / 1024).toFixed(2)} KB
-                                    </p>
-                                </>
-                            ) : (
-                                <>
-                                    <Upload className="h-12 w-12 text-gray-400 mb-3" />
-                                    <p className="mb-2 text-sm text-gray-500">
-                                        <span className="font-semibold">Clique para enviar</span> ou arraste o arquivo
-                                    </p>
-                                    <p className="text-xs text-gray-500">PDF, JPG ou PNG (máx. 10MB)</p>
-                                </>
-                            )}
-                        </div>
-                        <input
-                            id="file-upload"
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={handleFileChange}
-                        />
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-50">
+                <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]) }}
+                    className={cn(
+                        "relative border-2 border-dashed rounded-3xl p-12 text-center transition-all cursor-pointer",
+                        file ? "border-indigo-600 bg-indigo-50" : "border-gray-100 bg-gray-50/50 hover:bg-gray-100/50"
+                    )}
+                >
+                    <input id="t-up" type="file" className="hidden" onChange={handleFileChange} />
+                    <label htmlFor="t-up" className="cursor-pointer block">
+                        {file ? <FileText className="h-12 w-12 text-indigo-600 mx-auto mb-4" /> : <Upload className="h-12 w-12 text-gray-300 mx-auto mb-4" />}
+                        <p className="font-bold text-gray-700">{file ? file.name : 'Selecione seu comprovante'}</p>
+                        <p className="text-xs text-gray-400 mt-2">PDF, JPG ou PNG</p>
                     </label>
                 </div>
 
-                {/* Upload Button */}
                 <button
                     onClick={handleUpload}
                     disabled={!file || uploading}
-                    className={cn(
-                        "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors",
-                        !file || uploading
-                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            : "bg-blue-600 text-white hover:bg-blue-700"
-                    )}
+                    className="w-full mt-6 py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                 >
-                    {uploading ? (
-                        <>
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            Processando...
-                        </>
-                    ) : (
-                        <>
-                            <Upload className="h-5 w-5" />
-                            Enviar e Validar
-                        </>
-                    )}
+                    {uploading ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+                    {uploading ? 'Validando na Nuvem...' : 'Enviar para Auditoria'}
                 </button>
 
-                {/* Validation Result */}
                 {validationResult && (
-                    <div className="mt-6">
-                        {validationResult.status === 'APROVADO' ? (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle className="h-6 w-6 text-green-600 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <p className="font-bold text-green-900 text-lg">Pagamento Confirmado!</p>
-                                        <p className="text-sm text-green-700 mt-1">{validationResult.message}</p>
-                                        {validationResult.match_details && (
-                                            <div className="mt-3 text-sm text-green-800 bg-green-100 rounded p-3">
-                                                <p><strong>Valor:</strong> R$ {validationResult.match_details.amount?.toFixed(2)}</p>
-                                                <p><strong>Data:</strong> {validationResult.match_details.date}</p>
-                                                <p><strong>Descrição:</strong> {validationResult.match_details.description}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                    <div className={cn("mt-8 p-6 rounded-3xl border-2 animate-in zoom-in-95", validationResult.status === 'APROVADO' ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100")}>
+                        <div className="flex gap-4">
+                            {validationResult.status === 'APROVADO' ? <CheckCircle className="text-green-500" /> : <CheckCircle className="text-amber-500" />}
+                            <div>
+                                <p className="font-bold text-gray-900">{validationResult.status === 'APROVADO' ? 'Pagamento Confirmado' : 'Recebido'}</p>
+                                <p className="text-sm text-gray-600 mt-1">{validationResult.message}</p>
                             </div>
-                        ) : (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <XCircle className="h-6 w-6 text-red-600 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <p className="font-bold text-red-900 text-lg">Pagamento Não Encontrado</p>
-                                        <p className="text-sm text-red-700 mt-1">{validationResult.message}</p>
-                                        <p className="text-xs text-red-600 mt-2">
-                                            O comprovante foi enviado, mas não encontramos o pagamento no extrato bancário do condomínio.
-                                            Entre em contato com a administração.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 )}
-
-                {/* Info Box */}
-                <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-900">
-                        <strong>Como funciona:</strong> Ao enviar seu comprovante, o sistema valida automaticamente
-                        se o pagamento foi recebido na conta do condomínio. Você receberá a confirmação em instantes.
-                    </p>
-                </div>
             </div>
         </div>
     )

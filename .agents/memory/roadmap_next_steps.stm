@@ -1,0 +1,40 @@
+[stm-text v2.5.1] auditcondo-next-steps
+μ/meta=type:roadmap,date:2026-04-03,status:active
+σ/seq=1_db→2_edgefn→3_frontend→4_test→5_deploy
+
+STEP 1: DB_PUSH (blocker: senha postgres)
+  1a=user_provides DB_PASSWORD
+  1b=write .env.local with SUPABASE keys (publishable+secret+db_url)
+  1c=supabase login (via access token or browser)
+  1d=supabase link --project-ref nziggqeoeqaenugixtwr
+  1e=supabase db push (push migration 20260403000000_auditcondo_schema_v1.sql)
+  1f=verify tables+RLS live in Supabase dashboard
+
+STEP 2: EDGE_FUNCTIONS_REVIEW
+  2a=read supabase/functions/process-comprovante/index.ts
+  2b=update column names (tipo→type, align fraud fields)
+  2c=read supabase/functions/process-extrato/index.ts
+  2d=update col names + add arquivo_hash dedup logic
+  2e=read remaining functions (reconciliation, dashboard, audit)
+  2f=update each to match new schema
+
+STEP 3: FRONTEND_CONNECT
+  3a=create frontend/.env.local with new VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (DONE)
+  3b=verify supabase client config in frontend/src/lib/supabaseClient.ts (DONE)
+  3c=audit frontend data calls for old column names (tipo→type, schema drift) (DONE)
+  3d=ensure auth flow uses perfis table (role-based routing) (DONE)
+  3e=npm install + npm run dev test (DONE)
+
+STEP 4: E2E_TEST (pilots)
+  4a=create test user in Supabase Auth (sindico of Piloto 1) (DONE)
+  4b=simulate login & token resolution (DONE)
+  4c=verify RLS multi-tenant leakage blocker: sindico Piloto1 CANNOT see Piloto2 data (DONE)
+  4d=verify data insertion boundary for Piloto1 scope (DONE)
+
+STEP 5: DEPLOY_STABLE
+  5a=supabase functions deploy (all edge functions) (DONE)
+  5b=frontend deploy (Netlify or Vercel)
+  5c=configure CORS + env vars in Supabase dashboard
+  5d=smoke test production URL
+
+⊕ CURRENT_BLOCKER=STEP_1a (DB_PASSWORD missing)

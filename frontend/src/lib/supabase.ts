@@ -1,15 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 
-// @ts-ignore
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-// @ts-ignore
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseKey) {
-    console.warn("Supabase credentials not found in environment variables.")
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Faltam variáveis de ambiente do Supabase (VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY)')
 }
 
-export const supabase = createClient(
-    supabaseUrl || 'https://placeholder.supabase.co',
-    supabaseKey || 'placeholder'
-)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: false, // Evita cache corrompido de dev
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+    }
+})

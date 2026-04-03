@@ -3,8 +3,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { cn } from '../../lib/utils'
 import { RefreshCw, TrendingUp, TrendingDown, Wallet, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 import { SkeletonDashboard } from '../../components/ui/Skeleton'
-
-const API_URL = 'http://localhost:8000'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface DashboardData {
     orcamento_anual: number
@@ -18,47 +18,78 @@ interface DashboardData {
     ultima_atualizacao: string
 }
 
-// Dados de fallback para a Demo (Netlify) caso a API física não responda
 const fallbackData: DashboardData = {
-    orcamento_anual: 156000.0,
-    orcamento_trend: '+2.5%',
-    despesas_totais: 12450.80,
-    despesas_trend: '-1.2%',
-    fundo_reserva: 48500.0,
-    fundo_trend: '+3.8%',
-    grafico_dados: [
-        { name: 'Jul', receitas: 25000, despesas: 22000 },
-        { name: 'Ago', receitas: 26000, despesas: 21000 },
-        { name: 'Set', receitas: 24000, despesas: 23000 },
-        { name: 'Out', receitas: 27000, despesas: 20000 },
-        { name: 'Nov', receitas: 25500, despesas: 24500 },
-        { name: 'Dez', receitas: 28000, despesas: 21500 },
-    ],
-    alertas: [
-        { title: 'Pagamento Confirmado', description: 'Unidade 101 - Taxa condominial Dezembro', severity: 'low', created_at: new Date().toISOString() },
-        { title: 'Manutenção Elevador', description: 'NF pendente de auditoria para validação', severity: 'high', created_at: new Date().toISOString() },
-        { title: 'Inadimplência Detectada', description: '2 unidades com atraso superior a 30 dias', severity: 'medium', created_at: new Date().toISOString() },
-    ],
+    orcamento_anual: 0,
+    orcamento_trend: '+0%',
+    despesas_totais: 0,
+    despesas_trend: '+0%',
+    fundo_reserva: 0,
+    fundo_trend: '+0%',
+    grafico_dados: [],
+    alertas: [],
     ultima_atualizacao: new Date().toISOString()
 }
 
 export function Dashboard() {
+    const { user } = useAuth()
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [data, setData] = useState<DashboardData>(fallbackData)
 
-    const condominioId = '00000000-0000-0000-0000-000000000001'
-
     const fetchDashboardData = async () => {
+        if (!user?.condominio_id) return
+
         try {
             setRefreshing(true)
-            const response = await fetch(`${API_URL}/api/v1/dashboard/summary?condominio_id=${condominioId}`)
-            if (response.ok) {
-                const result = await response.json()
-                setData(result)
-            }
+
+            // 1. Buscar Transações para o gráfico e totais
+            const { data: txs, error: txError } = await supabase
+                .from('transacoes_bancarias')
+                .select('*')
+                .eq('condominio_id', user.condominio_id)
+
+            if (txError) throw txError
+
+            // 2. Buscar Config de Reserva
+            const { data: reserve, error: resError } = await supabase
+                .from('reserva_config')
+                .select('*')
+                .eq('condominio_id', user.condominio_id)
+                .single()
+
+            // 3. Processar Totais
+            const receitas = txs?.filter(t => t.type === 'CREDIT').reduce((s, t) => s + (t.valor || 0), 0) || 0
+            const despesas = txs?.filter(t => t.type === 'DEBIT').reduce((s, t) => s + (t.valor || 0), 0) || 0
+
+            // 4. Buscar Alertas (Comprovantes pendentes ou suspeitos)
+            const { data: alerts } = await supabase
+                .from('comprovantes')
+                .select('*')
+                .eq('condominio_id', user.condominio_id)
+                .or('status_auditoria.eq.pendente,status_auditoria.eq.suspeito')
+                .limit(5)
+
+            setData({
+                orcamento_anual: 0, // Implementar tabela de orçamento depois
+                orcamento_trend: '+0%',
+                despesas_totais: despesas,
+                despesas_trend: '+0%',
+                fundo_reserva: reserve?.saldo_inicial || 0,
+                fundo_trend: '+0%',
+                grafico_dados: [
+                    { name: 'Atual', receitas, despesas }
+                ],
+                alertas: alerts?.map(a => ({
+                    title: 'Auditoria Pendente',
+                    description: `Comprovante de R$ ${a.valor} aguardando análise`,
+                    severity: a.status_auditoria === 'suspeito' ? 'high' : 'medium',
+                    created_at: a.data_upload
+                })) || [],
+                ultima_atualizacao: new Date().toISOString()
+            })
+
         } catch (err) {
-            // Use fallback data silently
+            console.error('Erro ao buscar dashboard do Supabase:', err)
         } finally {
             setLoading(false)
             setRefreshing(false)
@@ -66,149 +97,79 @@ export function Dashboard() {
     }
 
     useEffect(() => {
-        // Simulate minimum loading time for polish
-        const timer = setTimeout(() => {
-            fetchDashboardData()
-        }, 800)
-        return () => clearTimeout(timer)
-    }, [])
+        fetchDashboardData()
+    }, [user])
 
     const formatCurrency = (value: number): string => {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
-            currency: 'BRL',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
+            currency: 'BRL'
         }).format(value)
     }
 
-    if (loading) {
-        return (
-            <div className="p-8">
-                <SkeletonDashboard />
-            </div>
-        )
-    }
+    if (loading) return <div className="p-8"><SkeletonDashboard /></div>
 
     return (
-        <div className="p-8 space-y-8 animate-fade-in">
-            {/* Header */}
+        <div className="p-8 space-y-8 animate-fade-in shadow-2xl rounded-3xl bg-white/50 backdrop-blur-sm border border-white">
             <header className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-                        Visão Geral
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                        Gestão da Unidade
                     </h1>
-                    <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5" />
-                        Atualizado em {new Date(data.ultima_atualizacao).toLocaleString('pt-BR')}
+                    <p className="text-sm text-gray-500 mt-1 flex items-center gap-2 font-medium">
+                        <Clock className="h-4 w-4 text-blue-500" />
+                        Live Cloud Data • {new Date(data.ultima_atualizacao).toLocaleString('pt-BR')}
                     </p>
                 </div>
                 <button
                     onClick={fetchDashboardData}
                     disabled={refreshing}
-                    className="btn btn-secondary"
+                    className="p-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-95 text-gray-600"
                 >
-                    <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-                    {refreshing ? 'Atualizando...' : 'Atualizar'}
+                    <RefreshCw className={cn("h-5 w-5", refreshing && "animate-spin text-blue-600")} />
                 </button>
             </header>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard
-                    title="Orçamento Anual"
-                    value={formatCurrency(data.orcamento_anual)}
-                    trend={data.orcamento_trend}
-                    icon={<Wallet className="h-5 w-5" />}
-                    color="blue"
-                />
-                <StatCard
-                    title="Despesas do Mês"
-                    value={formatCurrency(data.despesas_totais)}
-                    trend={data.despesas_trend}
-                    icon={<TrendingDown className="h-5 w-5" />}
-                    color="red"
-                    negative
-                />
-                <StatCard
-                    title="Fundo de Reserva"
-                    value={formatCurrency(data.fundo_reserva)}
-                    trend={data.fundo_trend}
-                    icon={<TrendingUp className="h-5 w-5" />}
-                    color="green"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <StatCard title="Saldo Atual" value={formatCurrency(data.orcamento_anual)} trend="+0%" icon={<Wallet />} color="blue" />
+                <StatCard title="Saídas (Mês)" value={formatCurrency(data.despesas_totais)} trend="+0%" icon={<TrendingDown />} color="red" negative />
+                <StatCard title="Fundo de Reserva" value={formatCurrency(data.fundo_reserva)} trend="+0%" icon={<TrendingUp />} color="green" />
             </div>
 
-            {/* Chart + Alerts */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                {/* Chart - 3 cols */}
-                <div className="lg:col-span-3 card">
-                    <div className="card-header flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-gray-900">Receitas vs Despesas</h2>
-                        <span className="text-xs text-gray-500">Últimos 6 meses</span>
-                    </div>
-                    <div className="card-body">
-                        <div className="h-[280px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={data.grafico_dados} barGap={2}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                    <XAxis
-                                        dataKey="name"
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fontSize: 12, fill: '#64748b' }}
-                                    />
-                                    <YAxis
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fontSize: 12, fill: '#64748b' }}
-                                        tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-                                    />
-                                    <Tooltip
-                                        formatter={(value: number) => formatCurrency(value)}
-                                        contentStyle={{
-                                            borderRadius: '8px',
-                                            border: '1px solid #e2e8f0',
-                                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                                        }}
-                                    />
-                                    <Legend
-                                        iconType="circle"
-                                        iconSize={8}
-                                        wrapperStyle={{ paddingTop: '16px' }}
-                                    />
-                                    <Bar
-                                        dataKey="receitas"
-                                        fill="#3b82f6"
-                                        name="Receitas"
-                                        radius={[4, 4, 0, 0]}
-                                    />
-                                    <Bar
-                                        dataKey="despesas"
-                                        fill="#f43f5e"
-                                        name="Despesas"
-                                        radius={[4, 4, 0, 0]}
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
+                <div className="lg:col-span-3 card rounded-3xl border-none shadow-xl bg-white p-6">
+                    <h2 className="text-lg font-bold text-gray-900 mb-6">Fluxo de Caixa (Cloud)</h2>
+                    <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data.grafico_dados}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                                <YAxis axisLine={false} tickLine={false} />
+                                <Tooltip cursor={{ fill: '#f8fafc' }} />
+                                <Bar dataKey="receitas" fill="#4F46E5" radius={[6, 6, 0, 0]} barSize={40} />
+                                <Bar dataKey="despesas" fill="#EF4444" radius={[6, 6, 0, 0]} barSize={40} />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Alerts - 2 cols */}
-                <div className="lg:col-span-2 card">
-                    <div className="card-header">
-                        <h2 className="text-base font-semibold text-gray-900">Alertas de Auditoria</h2>
-                    </div>
-                    <div className="card-body space-y-3">
-                        {data.alertas.map((alerta, index) => (
-                            <AlertItem
-                                key={index}
-                                title={alerta.title}
-                                desc={alerta.description}
-                                severity={alerta.severity as 'low' | 'medium' | 'high' | 'critical'}
-                            />
-                        ))}
+                <div className="lg:col-span-2 card rounded-3xl border-none shadow-xl bg-white p-6">
+                    <h2 className="text-lg font-bold text-gray-900 mb-6">Alertas da Auditoria</h2>
+                    <div className="space-y-4">
+                        {data.alertas.length > 0 ? data.alertas.map((a, i) => (
+                            <div key={i} className={cn("p-4 rounded-2xl border flex gap-3", a.severity === 'high' ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100")}>
+                                <AlertTriangle className={cn("h-5 w-5", a.severity === 'high' ? "text-red-500" : "text-blue-500")} />
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900">{a.title}</p>
+                                    <p className="text-xs text-gray-600">{a.description}</p>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="text-center py-10">
+                                <CheckCircle className="h-10 w-10 text-green-400 mx-auto mb-3" />
+                                <p className="text-gray-500 text-sm">Nenhuma divergência detectada</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -216,93 +177,20 @@ export function Dashboard() {
     )
 }
 
-// Stat Card Component
-function StatCard({
-    title,
-    value,
-    trend,
-    icon,
-    color,
-    negative
-}: {
-    title: string
-    value: string
-    trend: string
-    icon: React.ReactNode
-    color: 'blue' | 'green' | 'red'
-    negative?: boolean
-}) {
-    const isPositive = trend.startsWith('+')
-
-    const colorClasses = {
-        blue: 'bg-blue-50 text-blue-600',
-        green: 'bg-emerald-50 text-emerald-600',
-        red: 'bg-rose-50 text-rose-600',
+function StatCard({ title, value, trend, icon, color, negative }: any) {
+    const colors: any = {
+        blue: 'bg-blue-600 text-white',
+        green: 'bg-green-500 text-white',
+        red: 'bg-red-500 text-white'
     }
-
     return (
-        <div className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-medium text-gray-500">{title}</span>
-                <div className={cn("p-2 rounded-lg", colorClasses[color])}>
-                    {icon}
-                </div>
+        <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-gray-50 flex flex-col gap-4 hover:translate-y-[-4px] transition-transform">
+            <div className="flex justify-between items-center">
+                <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">{title}</p>
+                <div className={cn("p-3 rounded-2xl shadow-lg", colors[color])}>{icon}</div>
             </div>
-            <div className="flex items-end justify-between">
-                <span className="text-2xl font-semibold text-gray-900 tracking-tight">{value}</span>
-                <span className={cn(
-                    "text-sm font-medium px-2 py-0.5 rounded-full",
-                    negative
-                        ? "bg-rose-50 text-rose-600"
-                        : isPositive
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-gray-100 text-gray-600"
-                )}>
-                    {trend}
-                </span>
-            </div>
-        </div>
-    )
-}
-
-// Alert Item Component
-function AlertItem({ title, desc, severity }: { title: string; desc: string; severity: 'low' | 'medium' | 'high' | 'critical' }) {
-    const config = {
-        low: {
-            bg: 'bg-emerald-50',
-            border: 'border-emerald-100',
-            icon: <CheckCircle className="h-4 w-4 text-emerald-500" />,
-            badge: 'bg-emerald-100 text-emerald-700'
-        },
-        medium: {
-            bg: 'bg-amber-50',
-            border: 'border-amber-100',
-            icon: <Clock className="h-4 w-4 text-amber-500" />,
-            badge: 'bg-amber-100 text-amber-700'
-        },
-        high: {
-            bg: 'bg-orange-50',
-            border: 'border-orange-100',
-            icon: <AlertTriangle className="h-4 w-4 text-orange-500" />,
-            badge: 'bg-orange-100 text-orange-700'
-        },
-        critical: {
-            bg: 'bg-rose-50',
-            border: 'border-rose-100',
-            icon: <AlertTriangle className="h-4 w-4 text-rose-500" />,
-            badge: 'bg-rose-100 text-rose-700'
-        },
-    }
-
-    const c = config[severity]
-
-    return (
-        <div className={cn("p-3 rounded-lg border flex items-start gap-3", c.bg, c.border)}>
-            <div className="mt-0.5">{c.icon}</div>
-            <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{title}</p>
-                <p className="text-xs text-gray-600 mt-0.5">{desc}</p>
-            </div>
+            <p className="text-3xl font-black text-gray-900">{value}</p>
+            <span className={cn("text-xs font-bold px-3 py-1 rounded-full w-fit", negative ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600")}>{trend}</span>
         </div>
     )
 }

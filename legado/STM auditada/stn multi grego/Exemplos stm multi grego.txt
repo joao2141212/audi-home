@@ -1,0 +1,109 @@
+
+1
+{
+"user_id": "user_12345",
+"name": "Maria Silva",
+"email": "maria.silva@email.com",
+"created_at": "2025-10-18T09:30:00Z",
+"subscription": {
+"plan": "premium",
+"status": "active",
+"renewal_date": "2026-01-18",
+"price_usd": 29.99
+},
+"preferences": {
+"language": "pt-BR",
+"notifications": true,
+"theme": "dark"
+}
+}
+[stm-data v2.5] user-profile
+υ/user_id=user_12345
+σ/name=Maria Silva email=maria.silva@email.com
+τ/created_at=2025-10-18T09:30:00Z
+ρ/subscription=plan:premium status:✓ renewal:2026-01-18 price:29.99
+χ/prefs=lang:pt-BR notif:✓ theme:dark
+⊕BIT:5
+product_id,name,category,stock,price_brl,last_updated
+P001,Notebook Dell,Electronics,15,3499.00,2025-10-18
+P002,Mouse Logitech,Electronics,45,89.90,2025-10-18
+P003,Cadeira Gamer,Furniture,8,1299.00,2025-10-17
+1. JSON
+Original
+STM
+2. CSV
+Original
+P004,Teclado Mecânico,Electronics,22,349.00,2025-10-18
+P005,Mesa Escritório,Furniture,5,899.00,2025-10-16
+[stm-data v2.5] inventory
+τ/T=2025-10-18
+σ/schema=product_id:str name:str category:ε{Electronics,Furniture} stock:num price_brl:nu
+ρ/reps=category→Electronics(3/5) last_updated→T(3/5)
+π/records=5
+δ/P001=Notebook Dell,Electronics,15,3499.00,T
+δ/P002=Mouse Logitech,Electronics,45,89.90,T
+δ/P003=Cadeira Gamer,Furniture,8,1299.00,T-1
+δ/P004=Teclado Mecânico,Electronics,22,349.00,T
+δ/P005=Mesa Escritório,Furniture,5,899.00,T-2
+⊕BIT:7
+POST /api/v1/orders
+Description: Create a new order for a customer
+Authentication: Bearer token required
+Request Body:
+{
+"customer_id": "string (required)",
+"items": [
+{
+"product_id": "string (required)",
+"quantity": "integer (required, min: 1)"
+}
+],
+"payment_method": "string (enum: credit_card, pix, boleto)"
+}
+Response 201:
+{
+"order_id": "string",
+"status": "pending",
+"total": "decimal",
+"created_at": "ISO 8601 timestamp"
+}
+Response 400: Invalid request body
+Response 401: Unauthorized
+STM
+3. DOCS API Endpoint)
+Original
+[stm-docs v2.4] orders-create
+π/endpoint=POST /api/v1/orders
+ψ/desc=create-order-customer
+ρ/auth=Bearer-token
+σ/req=customer_id:str✓ items[product_id:str✓ quantity:int≥1]✓ payment_method:ε{credit_ca
+σ/resp-201=order_id:str status:pending total:dec created_at:iso8601
+ε/resp-400=invalid-body
+ε/resp-401=unauthorized
+⊕BIT:4
+OpenAI lança GPT-5 com capacidades multimodais avançadas
+São Francisco, 18 de outubro de 2025 - A OpenAI anunciou hoje o lançamento do GPT-5, a ma
+O CEO Sam Altman afirmou que o GPT-5 representa um salto qualitativo na IA generativa, co
+O modelo estará disponível para desenvolvedores via API a partir de novembro, com preços
+[stm-text v2.5.1] gpt5-launch
+μ/metadata=date:2025-10-18 location:SF source:OpenAI✓
+χ/lang=pt-br
+σ/seq=announce→features→ceo-quote→avail
+ψ/announce=OpenAI launch GPT-5 multimodal-advanced
+φ/features=improve:math-reasoning+code-gen+video-understanding
+ω/ceo-quote=Sam-Altman qualitative-leap reduce-hallucinations:40% context:2M-tokens
+ζ/avail=devs API november competitive-pricing vs GPT-4
+⊕BIT:8
+User: Carlos
+Location: São Paulo, Brazil
+Timezone: UTC-3
+Work Hours: 09:00-18:00 Mon-Fri
+Coffee Preference: Espresso double shot, no sugar
+Commute: Subway Line 2, 45 min
+Exercise: Gym 3x week (Tue/Thu/Sat 19:00)
+STM
+4. TEXT Notícia)
+Original
+STM
+5. MEMORY Persona)
+Original

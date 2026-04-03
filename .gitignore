@@ -12,6 +12,8 @@ backend/__pycache__/
 .env
 backend/.env
 frontend/.env.local
+SUPABASE_CREDENCIAIS.md
+*credenciais*.md
 
 # Build
 dist/

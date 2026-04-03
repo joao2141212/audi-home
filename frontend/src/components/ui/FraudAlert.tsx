@@ -1,11 +1,6 @@
 import { AlertTriangle, Shield, FileWarning, Copy, Edit, FileX } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-interface FraudAlert {
-    fraud_score: number
-    fraud_flags: { flags: string[] }
-    documento_alterado: boolean
-}
 
 interface FraudAlertBadgeProps {
     receipt: {
@@ -109,7 +104,7 @@ export function FraudAlertBadge({ receipt }: FraudAlertBadgeProps) {
                         <div className="space-y-1 mt-3">
                             <p className="text-sm font-medium">Problemas detectados:</p>
                             <ul className="space-y-1">
-                                {fraud_flags.flags.map((flag, index) => {
+                                {fraud_flags.flags.map((flag: string, index: number) => {
                                     const { icon: FlagIcon, label } = getFlagLabel(flag)
                                     return (
                                         <li key={index} className="flex items-center gap-2 text-sm">

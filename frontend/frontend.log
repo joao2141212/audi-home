@@ -1,0 +1,10 @@
+
+> frontend@0.0.0 dev
+> vite --port 7374 --host
+
+
+  VITE v5.4.21  ready in 302 ms
+
+  ➜  Local:   http://localhost:7374/
+  ➜  Network: http://192.168.1.2:7374/
+  ➜  press h + enter to show help

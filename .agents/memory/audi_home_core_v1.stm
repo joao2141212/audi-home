@@ -1,0 +1,63 @@
+[stm-text v2.5.1] auditcondo-core
+μ/meta=project:AuditCondo,domain:SaaS_antifraude_condominio,url:auditcondo.com,date:2026-04-03
+χ/lang=pt-br
+φ/pol=supabase_only,no_local_server,edge_functions_deno,RLS_mandatory_all_tables
+
+σ/stack:
+  db=Supabase(Postgres+Auth+Storage+EdgeFunctions_Deno)
+  frontend=React+Vite+TypeScript+SupabaseJS
+  ocr=Gemini_Flash(EdgeFn)
+  cnpj_api=CNPJ.ws(free)
+  payment_provider=Phase2
+
+σ/tenant_hierarchy:
+  Administradora→Condominio→Perfil(auth.users)
+  role=master|gestor|sindico
+  RLS_fn=user_has_condo_access(condo_id)→BOOL
+
+σ/tables_live:
+  administradoras(id,nome,cnpj,ativo)
+  condominios(id,administradora_id,nome,cnpj,ativo)
+  perfis(id→auth.users,role,administradora_id,condominio_id)
+  fornecedores(cnpj_UNIQUE,razao_social,situacao_cadastral,cnae_principal,rfb_cache_json)
+  extratos_bancarios(condominio_id,arquivo_hash_UNIQUE,periodo,fonte=manual|open_finance)
+  transacoes_bancarias(condominio_id,extrato_id,date,valor,type=CREDIT|DEBIT,nsu,codigo_barras,conciliado,comprovante_id)
+  comprovantes(condominio_id,fornecedor_id,arquivo_hash,ocr_*,cnpj_status,cnpj_nome_sim,cnpj_cnae_compat,fraud_score,fraud_flags,status,transacao_id)
+
+σ/fraud_pipeline:
+  L1=arquivo_hash→dup(+40pts)
+  L2=ocr_metadados(editor_detected+30,modified+20,screenshot+25,no_exif+15)
+  L3=codigo_barras≠ocr_valor(+30pts)
+  L4=cnpj_validacao(inactive→reject,name_sim<30→warn,cnae_incompat→warn)
+  L5=reconciliacao(OFX_extrato=truth_final)
+  score_levels=0-19(ok),20-39(warn),40-69(high),70+(fraud_max_prio)
+
+σ/edge_functions:
+  process-comprovante=upload→ocr_gemini→cnpj.ws→fraud_score→status
+  process-extrato=upload_pdf→parse→insert_transacoes
+  reconciliation=match(valor,date±3d)→score→link_ids
+  audit=query_comprovantes_status_report
+  dashboard=aggregate_stats_per_condo
+  open-finance=Phase2(Pluggy)
+
+σ/migration: supabase/migrations/20260403000000_auditcondo_schema_v1.sql
+σ/seed: 5_pilots_inserted(Piloto1→5)
+
+σ/system_status:
+  ✓ Schema v1 created + RLS enforced
+  ✓ Fraud detection columns in comprovantes
+  ✓ Edge functions folder exists (needs review/update)
+  ✓ Legacy moved to /legado (backend-node,backend-python,database,STM)
+  ✗ Frontend not yet connected to new schema
+  ✗ Edge functions not yet synced/updated for new column names
+  ✗ Supabase remote DB not yet linked via CLI
+
+σ/next_actions:
+  1=supabase_link_remote+push_migration
+  2=review_edge_fn_process-comprovante(update_col_names)
+  3=frontend_env+api_client_supabase
+  4=e2e_test_upload_comprovante_pilot1
+
+ρ/field_standard=type(NOT_tipo),status∈enum,fraud_score=NUMERIC(5,2)
+ψ/open_finance=Phase2_blocked(no_provider_yet)
+⊕BIT:64 LNA:auditable

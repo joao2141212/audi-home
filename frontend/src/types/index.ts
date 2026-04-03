@@ -25,18 +25,17 @@ export interface BankStatement {
 // Bank Transaction
 export interface BankTransaction {
     id: string
-    extrato_id: string
+    condominio_id: string
+    extrato_id?: string
     data_transacao: string
     valor: number
-    tipo: 'credito' | 'debito'
+    type: 'CREDIT' | 'DEBIT'
     descricao?: string
     nsu?: string
     codigo_barras?: string
-    conta_origem?: string
-    conta_destino?: string
-    status_reconciliacao: ReconciliationStatus
+    conciliado: boolean
     comprovante_id?: string
-    criado_em: string
+    created_at?: string
 }
 
 // Receipt

@@ -1,0 +1,114 @@
+
+1
+Seguindo os diversos teasers e vazamentos, a RedMagic lançou nesta sexta-feira 17) a família
+RedMagic 11 Pro. Composta de um modelo Pro e de um Pro Plus, a linha traz upgrades
+esperados em áreas como o processamento, mas chama atenção por contar com a primeira
+solução de resfriamento líquido produzida em larga escala para um smartphone, bem como por
+obter certificação inédita de proteção contra água e ampliar a capacidade já expressiva de
+bateria da geração anterior.
+Visualmente, a dupla de smartphones gamer não traz mudanças tão drásticas em relação à linha
+RedMagic 10 Pro, mantendo o formato quadrado de linhas retas e opções de cores
+transparentes no aparelho mais avançado. Há, porém, uma mudança bem-vinda na construção:
+a companhia conseguiu realizar ajustes para que os lançamentos obtivessem certificação IPX8
+de resistência à água, incluindo submersão, grande conquista ao considerarmos que a ventoinha
+foi mantida.
+O restante das especificações é quase idêntico entre as duas variantes, com pequenas
+exceções. Ambos vem equipados com o novo processador Snapdragon 8 Elite Gen 5,
+prometendo performance excepcional ao trabalhar em conjunto com o chip proprietário
+RedCore R4.
+A plataforma é acompanhada de 12 GB, 16 GB ou 24 GB (apenas Pro Plus) de RAM LPDDR5T e
+256 GB, 512 GB e 1 TB (apenas Pro Plus) de armazenamento UFS 4.1 Pro, enquanto traz de volta
+o reconhecido resfriamento com ventoinha das gerações passadas, agora com uma novidade
+curiosa: refrigeração líquida.
+Não é a primeira vez que vemos esse tipo de arrefecimento ser utilizado em um celular — a
+OnePlus demonstrou um conceito similar no passado —, mas a RedMagic é a primeira a
+implementar algo do tipo em um produto finalizado que será produzido em escala e oferecido
+aos usuários.
+A tecnologia utiliza um líquido refrigerante similar ao de servidores e emprega uma bomba de
+cerâmica compacta que permitiu a miniaturização dos componentes. Trabalhando em conjunto
+com o fan, a inovação garantiria uma eficiência de refrigeração 50% superior, assegurando
+máximo desempenho mesmo durante uso prolongado.
+O único ponto peculiar é que não está claro se o recurso está presente na linha, ou se é
+exclusivo do RedMagic 11 Pro Plus. Teremos de esperar por reviews ou mesmo por processos de
+Documentação STM TEXT RedMagic 11 Pro —
+Fluxo Completo
+1. NOTÍCIA ORIGINAL Limpa, sem links/propagandas)
+desmontagem para confirmarmos esse aspecto. Independente disso, devemos ver alta
+performance nos dois dispositivos.
+Câmeras nunca foram o foco da linha RedMagic e a situação não é diferente desta vez. O
+conjunto de fotografia parece ser o mesmo dos modelos do ano passado, com lente de selfies
+de 16 MP sob a tela e um trio de lentes traseiras com sensor principal de 50 MP, ultrawide de 50
+MP e macro de 2 MP.
+As configurações de bateria cravam outra diferença importante entre o Pro e o Pro Plus: o
+telefone mais simples traz capacidade maior de 8.000 mAh, mas tem carregamento limitado a
+80 W. Já a versão mais premium reduz a célula para 7.500 mAh, enquanto amplia a potência de
+recarga para 120 W e adiciona carregamento sem fio de 80 W.
+Outras especificações incluem sistema de som estéreo de alta definição, conexões 5G, Wi-Fi 7,
+Bluetooth 5.4 e USBC 3.2 Gen 2 10 Gbps), infravermelho para controlar outros aparelhos,
+gatilhos capacitivos na lateral, conector P2 para fones de ouvido, leitor de digitais ultrassônico
+sob a tela e sistema operacional Android 16 com interface RedMagic OS 11, recheada de
+recursos de IA. Um cronograma de atualizações não foi divulgado.
+RedMagic 11 Pro e 11 Pro Plus: ficha técnica
+Tela OLED de 6,85 polegadas com resolução de 2688  1216 pixels
+Display com taxa de atualização de 144 Hz e brilho máximo de 2.000 nits
+Processador Qualcomm Snapdragon 8 Elite Gen 5
+Chip proprietário RedCore R4
+12 GB, 16 GB ou 24 GB (apenas Pro Plus) de RAM LPDDR5T
+256 GB, 512 GB ou 1 TB (apenas Pro Plus) de armazenamento UFS 4.1 Pro
+Câmera frontal de 16 MP sob a tela
+Três câmeras traseiras: Lente principal com sensor de 50 MP, Lente ultrawide com sensor de 50
+MP, Lente macro com sensor de 2 MP
+Conexão 5G, Wi-Fi 7, Bluetooth 5.4, NFC, infravermelho, porta USBC 3.2 Gen 2, gatilhos
+capacitivos, certificação IPX8
+Bateria de 8.000 mAh com carregamento rápido de 80 W RedMagic 11 Pro)
+Bateria de 7.500 mAh com carregamento rápido de 120 W e sem fio de 80 W RedMagic 11 Pro
+Plus)
+Dimensões: 163,8  76,5  8,9 mm
+Peso: 230 g
+Sistema operacional Android 16, sob a interface RedMagic OS 11
+Preço e disponibilidade
+A família RedMagic 11 Pro já está disponível na China, com os seguintes preços sugeridos:
+RedMagic 11 Pro
+12 GB/256 GB  4.999 yuan R$ 3.810
+16 GB/512 GB  5.699 yuan R$ 4.345
+RedMagic 11 Pro Plus
+12 GB/256 GB (apenas preto fosco) — 5.699 yuan R$ 4.345
+16 GB/512 GB  6.499 yuan R$ 4.950
+16 GB/1 TB (apenas prata transparente) — 6.999 yuan R$ 5.330
+24 GB/1 TB (apenas prata transparente) — 7.699 yuan R$ 5.865
+A gigante confirmou ainda que o modelo padrão será lançado globalmente em 3 de novembro.
+Também podemos esperar que a novidade seja trazida ao Brasil em breve.
+[stm-text v2.5.1] redmagic11pro-ultra
+μ/meta=author:Renan_Dores,date:2025-10-17,src:TudoCelular
+χ/lang=pt-br
+ζ/src=tudocelular✓
+σ/seq=lede→specs→vars→bat→io→price→avail→design→notes
+κ/flags=facts nums no-tables
+α/models=11Pro,11Pro+
+β/ram=12,16,24(Pro+)
+γ/stor=256,512,1TB(Pro+)
+δ/camsR=50,50,2(MP)
+ε/io=5G,WiFi7,BT5.4,NFC,USBC3.2G2(10Gbps),IR,3.5mm,trg-cap,udfp
+λ/disp=OLED,6.85,2688×1216,144Hz,2000nits
+π/fcam=16MP,udc
+ρ/therm=fan+liq(pump-cer,eff+50%,mp-first,scope?Pro+)
+ω/mem=LPDDR5T,β/ram
+ψ/stor=UFS4.1Pro,γ/stor
+τ/soc=SD8E-G5+RedCoreR4
+α/audio=stereo
+η/body=163.8×76.5×8.9mm,230g
+ξ/os=Android16,RMOS11(AI),updates:ND
+ψ/lede=Nubia CN launch gaming RM11Pro/Pro+ SD8E-G5 IPX8 ρ/therm fan-kept
+φ/specs=λ/disp π/fcam δ/camsR ω/mem ψ/stor τ/soc α/audio ε/io
+σ/vars=α/models
+β/bat=Pro:8000mAh@80W;Pro+:7500mAh@120W+80W_wl
+π/price.CNY=Pro 12/256→4,999;16/512→5,699;Pro+ 12/256(matte)→5,699;16/512→6,499;16/1TB
+ζ/avail=CN:now;global:2025-11-03;BR:soon
+γ/design=square str-lines; trans(Pro+)
+θ/notes=prior:OnePlus-liq-cool(concept)
+⊕BIT:12 LNA:auditable
+RedMagic 11 Pro e 11 Pro+ estreiam na China com foco total em jogos e refrigeração
+avançada
+Autor: Renan Dores — Data: 17 de outubro de 2025  Fonte: TudoCelular
+2. COMPACTAÇÃO STM TEXT v2.5.1
+3. NOTÍCIA RECONSTRUÍDA PELA IA Zero-Shot a partir do STM

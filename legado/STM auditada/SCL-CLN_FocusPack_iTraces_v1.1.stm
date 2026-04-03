@@ -1,0 +1,75 @@
+[scl-cln v1] itraces.cln
+μ/meta: src:chat; date:2025-10-22; author:user+assistant; domain:itraces
+χ/lang: en
+φ/pol: noads; nocta; nofluff
+σ/seq: ovr→cap→lim→how→ex→qa→ref→ctx
+ovr: "Compact ops+debug guide for iTraces (backend+UI) in IDE/Heroku with anti‑hallucination."
+ovr.scope: user_msg → POST /api/message → OpenAI Chat Completions; UI file: 'chatbot - Tests Interface.html'
+cap:
+ - LLM response (default model: gpt-4o-mini)
+ - Retry w/ exponential backoff + jitter (max 5)
+ - Errors 400/401/429/500/503 w/ JSON messages
+ - UI overlay/spinner; input lock while processing
+ - LocalStorage history w/ timestamps
+ - Prod endpoint (Heroku) configurable in UI
+lim:
+ - must_not_invent: "If not in pack, answer: not provided."
+ - scope_lock: "Answer only about this iTraces backend/UI case."
+ - brand_names: "Only cite OpenAI, Heroku or items in ref.intg."
+ - versions: "Do not infer versions; use literal values only."
+how:
+ step1: Set OPENAI_API_KEY (optional OPENAI_MODEL).
+ step2: Backend: POST /api/message accepts {"message":"text"} or {"messages":[...]}; uses last item.
+ step3: UI: set BACKEND_URL="https://itraces-backend-ca5e67d7785d.herokuapp.com/api/message".
+ step4: While responding: UI disables textarea/button and shows spinner; re-enables on finish.
+ step5: Network errors ECONNRESET/ETIMEDOUT/ENOTFOUND/ECONNABORTED → server returns 503 details.
+ step6: No local FAQ; answers go straight to LLM.
+ex.in: "What is iTraces?"
+ex.out: "Intelligent customer‑service platform combining continuous learning and automation for contextual answers; it improves with use."
+qa:
+ 1? What is the prod backend endpoint?
+ 1! https://itraces-backend-ca5e67d7785d.herokuapp.com/api/message
+ 2? Which AI model is default on server?
+ 2! gpt-4o-mini
+ 3? How does POST /api/message receive user text?
+ 3! Accepts {"message":"text"} or {"messages":[...]}; uses the last entry.
+ 4? What if message is empty?
+ 4! Returns 400 with error 'Mensagem não pode estar vazia.'
+ 5? Which network errors map to 503?
+ 5! ECONNRESET, ENOTFOUND, ETIMEDOUT, ECONNABORTED.
+ 6? How many retries to LLM?
+ 6! Up to 5 with exponential backoff + jitter.
+ 7? What is the LLM timeout?
+ 7! 30,000 ms.
+ 8? What to do for unconfirmed roadmap/prices?
+ 8! State validation is needed; do not invent info.
+ 9? What does the UI do while processing?
+ 9! Locks input, shows overlay/spinner, then unlocks.
+ 10? Where to set backend URL in UI?
+ 10! Constant BACKEND_URL in file "chatbot - Tests Interface.html".
+ 11? Is there a local FAQ?
+ 11! No; removed. Answers go straight to the AI API.
+ 12? Which lead fields to request (if interest)?
+ 12! Name, company, email, monthly volume, and current tools (CRM/help desk).
+ 13? How to contact human team?
+ 13! WhatsApp/Phone +55 48 99201-5911; email comercial@itraces.com.br.
+ 14? Key pillars to communicate?
+ 14! Dynamic learning; personalized support; intelligent automation; continuous evolution; simplified integration; data analysis.
+ 15? Behavior for info absent in this pack?
+ 15! Answer 'not provided' and avoid hallucination.
+qa.n: 15
+ref.intg: [OpenAI Chat Completions API; Heroku (backend deploy)]
+ref.cmd: [curl -X POST "$BACKEND_URL" -H "Content-Type: application/json" -d '{"message":"Test"}'; set OPENAI_MODEL=gpt-4o-mini  # optional; default is gpt-4o-mini]
+ref.term: { BACKEND_URL: "HTTP endpoint for /api/message"; ECONNRESET: "Connection reset error"; Exponential backoff: "Increasing delay between retries"; Overlay: "Visual layer showing processing state" }
+ref.fact:
+ - openAIModel = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+ - 30s timeout on LLM call
+ - Max retries: 5 with jitter
+ - 401/429 handled explicitly
+ - Local FAQ removed
+ - UI stores history+timestamps in localStorage
+ctx.flow: user_msg→/api/message→openai.chat; ui:file('chatbot - Tests Interface.html')
+ctx.rules:
+ - answer.empty → 400("Mensagem não pode estar vazia.")
+ - net.err in {ECONNRESET,ENOTFOUND,ETIMEDOUT,ECONNABORTED} → 503(json)
+ - missing_info → 'not provided'

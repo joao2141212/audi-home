@@ -5,24 +5,46 @@ import { StatementUpload } from './features/statements/StatementUpload'
 import { TransactionHistory } from './features/statements/TransactionHistory'
 import { ReceiptUpload } from './features/receipts/ReceiptUpload'
 import { ReconciliationQueue } from './features/reconciliation/ReconciliationQueue'
-import { OpenFinanceConnect } from './features/open-finance/OpenFinanceConnect'
 import { ExpenseAudit } from './features/audit/ExpenseAudit'
-import { FileText, Upload, GitMerge, LayoutDashboard, Zap, TrendingDown } from 'lucide-react'
+import { BudgetManager } from './features/budget/BudgetManager'
+import { RevenueAudit } from './features/revenue/RevenueAudit'
+import { ComplianceReport } from './features/reports/ComplianceReport'
+import { ReserveFund } from './features/reserve/ReserveFund'
+import { FileText, Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2 } from 'lucide-react'
 import { cn } from './lib/utils'
+import { useAuth } from './contexts/AuthContext'
+import { LoginPage } from './pages/LoginPage'
+import { MasterDashboard } from './features/dashboard/MasterDashboard'
 
 const queryClient = new QueryClient()
 
 type Tab = 'dashboard' | 'statements' | 'receipts' | 'reconciliation' | 'open-finance' | 'expenses'
 
 function App() {
-    const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+    const { user, logout, isAuthenticated, loading } = useAuth()
+    const [activeTab, setActiveTab] = useState<string>('dashboard')
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+            </div>
+        )
+    }
+
+    if (!isAuthenticated) {
+        return <LoginPage />
+    }
 
     const tabs = [
         { id: 'dashboard' as Tab, label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'open-finance' as Tab, label: 'Open Finance', icon: Zap },
-        { id: 'statements' as Tab, label: 'Extratos', icon: FileText },
-        { id: 'receipts' as Tab, label: 'Comprovantes', icon: Upload },
+        { id: 'budget' as Tab, label: 'Orçamento', icon: BarChart3 },
+        { id: 'statements' as Tab, label: 'Extratos', icon: Landmark },
+        { id: 'receipts' as Tab, label: 'Upload Comprovantes', icon: Upload },
+        { id: 'revenue' as Tab, label: 'Receitas', icon: Zap },
         { id: 'expenses' as Tab, label: 'Despesas', icon: TrendingDown },
+        { id: 'compliance' as Tab, label: 'Compliance', icon: ShieldCheck },
+        { id: 'reserve' as Tab, label: 'Reserva', icon: Wallet },
         { id: 'reconciliation' as Tab, label: 'Reconciliação', icon: GitMerge },
     ]
 
@@ -38,13 +60,31 @@ function App() {
                                     <Zap className="h-4 w-4 text-white" />
                                 </div>
                                 <h1 className="text-lg font-semibold text-gray-900 tracking-tight">
-                                    Auditoria Financeira
+                                    Audi Home
                                 </h1>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                                    Condomínio Solar
-                                </span>
+                            <div className="flex items-center gap-4">
+                                <div className="flex flex-col items-end">
+                                    <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-xs text-gray-500">
+                                                {user?.role === 'master' ? 'Gestão Global' : 'Unidade Ativa'}
+                                            </span>
+                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-600 font-bold uppercase">
+                                                {user?.role}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={logout}
+                                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 hover:text-red-600 rounded-lg transition-all"
+                                        title="Encerrar sessão"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        <span>Sair</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -79,19 +119,24 @@ function App() {
 
                 {/* Content */}
                 <main className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-                    {activeTab === 'dashboard' && <Dashboard />}
+                    {activeTab === 'dashboard' && (
+                        user?.role === 'master' ? <MasterDashboard /> : <Dashboard />
+                    )}
 
-                    {activeTab === 'open-finance' && <OpenFinanceConnect />}
+                    {activeTab === 'budget' && <BudgetManager />}
+
+                    {activeTab === 'revenue' && <RevenueAudit />}
+
+                    {activeTab === 'compliance' && <ComplianceReport />}
+
+                    {activeTab === 'reserve' && <ReserveFund />}
 
                     {activeTab === 'statements' && (
                         <div className="space-y-10">
                             <TransactionHistory />
 
                             <div className="pt-8 border-t border-gray-200">
-                                <h2 className="text-lg font-semibold text-gray-900 mb-2">Importação Manual</h2>
-                                <p className="text-sm text-gray-500 mb-6">
-                                    Use esta opção caso não possua Open Finance habilitado para este banco.
-                                </p>
+                                <h2 className="text-lg font-semibold text-gray-900 mb-2">Importação de Extrato</h2>
                                 <StatementUpload />
                             </div>
                         </div>
@@ -99,7 +144,7 @@ function App() {
 
                     {activeTab === 'receipts' && (
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-6">Enviar Comprovante</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-6">Enviar Comprovante Fiscal</h2>
                             <ReceiptUpload />
                         </div>
                     )}
@@ -113,7 +158,7 @@ function App() {
 
                     {activeTab === 'reconciliation' && (
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-6">Reconciliação Manual</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-6">Reconciliação (Comprovante x Banco)</h2>
                             <ReconciliationQueue />
                         </div>
                     )}

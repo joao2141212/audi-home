@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { SkeletonTable } from '../../components/ui/Skeleton'
+import { api } from '../../lib/api'
 
 interface Transaction {
     id: string
@@ -28,58 +29,6 @@ interface ExpenseListProps {
     onAuditClick: (transaction: Transaction) => void
 }
 
-// Mock data mais rico para demo
-const demoExpenses: Transaction[] = [
-    {
-        id: 'demo_001',
-        amount: 5000.00,
-        date: '2025-12-01',
-        description: 'MANUTENCAO ELEVADOR ATLAS SCHINDLER',
-        category: 'Manutenção',
-        auditStatus: 'aprovado'
-    },
-    {
-        id: 'demo_002',
-        amount: 3500.00,
-        date: '2025-11-28',
-        description: 'LIMPEZA PREDIAL LIMPMAX LTDA',
-        category: 'Serviços',
-        auditStatus: 'pendente'
-    },
-    {
-        id: 'demo_003',
-        amount: 1200.00,
-        date: '2025-11-25',
-        description: 'PORTARIA - SEGURANCA 24H',
-        category: 'Segurança',
-        auditStatus: 'pendente'
-    },
-    {
-        id: 'demo_004',
-        amount: 3450.20,
-        date: '2025-11-22',
-        description: 'ENEL DISTRIBUICAO SP',
-        category: 'Energia',
-        auditStatus: 'aprovado'
-    },
-    {
-        id: 'demo_005',
-        amount: 2100.00,
-        date: '2025-11-18',
-        description: 'ADMINISTRACAO HABITCOND',
-        category: 'Administração',
-        auditStatus: 'aprovado'
-    },
-    {
-        id: 'demo_006',
-        amount: 890.00,
-        date: '2025-11-15',
-        description: 'SABESP - AGUA E ESGOTO',
-        category: 'Água',
-        auditStatus: 'rejeitado'
-    },
-]
-
 export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
@@ -87,12 +36,23 @@ export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
 
     const fetchExpenses = async () => {
         setLoading(true)
-
-        // Simulate loading
-        setTimeout(() => {
-            setTransactions(demoExpenses)
-            setLoading(false)
-        }, 800)
+        try {
+            const data = await api.getExpenses(condominioId)
+            const mapped: Transaction[] = (data || []).map((ex: any) => ({
+                id: ex.id.toString(),
+                amount: ex.valor,
+                date: ex.data_emissao,
+                description: ex.descricao || 'Despesa',
+                category: ex.fornecedores?.razao_social || 'Geral',
+                auditStatus: ex.status_auditoria || 'pendente'
+            }))
+            setTransactions(mapped)
+        } catch (err) {
+            console.error('Erro ao buscar despesas:', err)
+            setTransactions([])
+        } finally {
+            setTimeout(() => setLoading(false), 600)
+        }
     }
 
     useEffect(() => {

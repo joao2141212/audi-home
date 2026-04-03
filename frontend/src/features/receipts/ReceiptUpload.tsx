@@ -1,320 +1,210 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
     Upload,
     FileText,
     CheckCircle,
     AlertCircle,
     Clock,
-    Eye,
-    Trash2,
     Image as ImageIcon,
-    FileCheck,
     Loader2
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { api } from '../../lib/api'
+import { useAuth } from '../../contexts/AuthContext'
 
-// Mock data for demo - comprovantes já enviados
-const mockReceipts = [
-    {
-        id: '1',
-        fileName: 'comprovante_dezembro_101.pdf',
-        unidade: 'Apto 101',
-        uploadedAt: '2025-12-28T14:30:00',
-        status: 'aprovado',
-        valor: 850.00,
-        ocrConfianca: 98
-    },
-    {
-        id: '2',
-        fileName: 'pagamento_taxa_202.jpg',
-        unidade: 'Apto 202',
-        uploadedAt: '2025-12-27T10:15:00',
-        status: 'pendente',
-        valor: 850.00,
-        ocrConfianca: 85
-    },
-    {
-        id: '3',
-        fileName: 'recibo_manutencao.pdf',
-        unidade: 'Área Comum',
-        uploadedAt: '2025-12-26T09:00:00',
-        status: 'rejeitado',
-        valor: null,
-        ocrConfianca: 42
-    },
-]
+interface Receipt {
+    id: string
+    arquivo_nome: string
+    razao_social: string | null
+    cnpj: string | null
+    data_emissao: string
+    valor: number
+    status_auditoria: string
+    created_at?: string
+    fornecedores?: {
+        razao_social: string
+        cnpj: string
+    }
+}
+
+interface GeminiReceiptResponse {
+    cnpj_emissor: string
+    razao_social_emissor: string
+    data_emissao: string
+    valor_total: number
+    descricao_servico: string
+    natureza_servico?: string
+}
 
 export function ReceiptUpload() {
+    const { user } = useAuth()
     const [uploading, setUploading] = useState(false)
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle')
     const [message, setMessage] = useState('')
-    const [unidade, setUnidade] = useState('')
     const [dragActive, setDragActive] = useState(false)
-    const [receipts, setReceipts] = useState(mockReceipts)
+    const [receipts, setReceipts] = useState<Receipt[]>([])
 
-    const handleFileUpload = async (file: File) => {
-        setUploading(true)
-        setUploadStatus('idle')
+    useEffect(() => {
+        if (user?.condominio_id) loadReceipts()
+    }, [user])
 
-        // Simulate upload for demo
-        setTimeout(() => {
-            const newReceipt = {
-                id: Date.now().toString(),
-                fileName: file.name,
-                unidade: unidade || 'Não informada',
-                uploadedAt: new Date().toISOString(),
-                status: 'pendente' as const,
-                valor: 850.00,
-                ocrConfianca: 92
-            }
-            setReceipts([newReceipt, ...receipts])
-            setUploadStatus('success')
-            setMessage('Comprovante enviado e processado via OCR!')
-            setUploading(false)
-            setUnidade('')
-        }, 1500)
-    }
-
-    const handleDrag = (e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        if (e.type === 'dragenter' || e.type === 'dragover') {
-            setDragActive(true)
-        } else if (e.type === 'dragleave') {
-            setDragActive(false)
+    const loadReceipts = async () => {
+        if (!user?.condominio_id) return
+        try {
+            const data = await api.getReceipts(user.condominio_id)
+            setReceipts(data)
+        } catch (error) {
+            console.error('Erro ao carregar comprovantes:', error)
         }
     }
 
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault()
-        setDragActive(false)
-        const file = e.dataTransfer.files[0]
-        if (file) handleFileUpload(file)
+    const extractReceiptWithGemini = async (base64: string, mimeType: string): Promise<GeminiReceiptResponse> => {
+        const apiKey = import.meta.env.VITE_GOOGLE_API_KEY
+        const prompt = `Analise este Comprovante/Nota Fiscal. Extraia em JSON: cnpj_emissor, razao_social_emissor, data_emissao (YYYY-MM-DD), valor_total (number), descricao_servico, natureza_servico.`
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: base64 } }] }]
+                })
+            }
+        )
+
+        if (!response.ok) throw new Error('Erro na IA')
+        const result = await response.json()
+        let jsonText = result.candidates[0].content.parts[0].text
+        jsonText = jsonText.replace(/```json\s*/g, '').replace(/```/g, '').trim()
+        return JSON.parse(jsonText)
     }
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (file) handleFileUpload(file)
+    const handleFileUpload = async (file: File) => {
+        if (!user?.condominio_id) return
+        setUploading(true)
+        setUploadStatus('idle')
+        setMessage('Iniciando visão computacional...')
+
+        try {
+            const arrayBuffer = await file.arrayBuffer()
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+            let mimeType = file.type || 'application/octet-stream'
+            if (file.name.endsWith('.pdf')) mimeType = 'application/pdf'
+
+            const data = await extractReceiptWithGemini(base64, mimeType)
+
+            setMessage('Auditoria Cloud: Validando CNPJ...')
+            const cnpjAudit = await api.validateCNPJ(data.cnpj_emissor)
+
+            let auditStatus = 'auditado'
+            let auditFlags = []
+
+            if (cnpjAudit.valid) {
+                if (cnpjAudit.situacao !== 'ATIVA') {
+                    auditStatus = 'suspeito'
+                    auditFlags.push(`CNPJ_${cnpjAudit.situacao}`)
+                }
+
+                // Cheque de CNAE simplificado
+                const cnaeMap: any = {
+                    'Manutenção': ['4321', '4322', '4329', '4399', '3313', '3314'],
+                    'Limpeza': ['8121', '8122', '8129'],
+                    'Obra': ['4120', '4330', '4391']
+                }
+
+                const serviceType = data.natureza_servico || 'Manutenção'
+                const requiredCnaes = cnaeMap[serviceType] || []
+                const hasCnae = (cnpjAudit.cnaes || []).some((c: string) =>
+                    requiredCnaes.some((req: string) => c.replace(/\D/g, '').startsWith(req))
+                )
+
+                if (!hasCnae && requiredCnaes.length > 0) {
+                    auditFlags.push('CNAE_INCOMPATIVEL')
+                    if (auditStatus !== 'suspeito') auditStatus = 'alerta'
+                }
+            } else {
+                auditStatus = 'alerta'
+                auditFlags.push('CNPJ_NAO_ENCONTRADO')
+            }
+
+            setMessage('Salvando no Cloud...')
+            await api.saveReceipt({
+                condominio_id: user.condominio_id,
+                data_emissao: data.data_emissao,
+                valor: data.valor_total,
+                descricao: data.descricao_servico,
+                arquivo_nome: file.name,
+                status_auditoria: auditStatus,
+                audit_flags: auditFlags.join(',')
+            })
+
+            setUploadStatus('success')
+            setMessage('Comprovante processado e salvo na nuvem!')
+            loadReceipts()
+        } catch (error) {
+            setUploadStatus('error')
+            setMessage('Erro ao processar comprovante.')
+        } finally {
+            setUploading(false)
+        }
     }
 
     const getStatusConfig = (status: string) => {
         switch (status) {
-            case 'aprovado':
-                return {
-                    label: 'Aprovado',
-                    icon: <CheckCircle className="h-3.5 w-3.5" />,
-                    classes: 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                }
-            case 'pendente':
-                return {
-                    label: 'Pendente',
-                    icon: <Clock className="h-3.5 w-3.5" />,
-                    classes: 'bg-amber-50 text-amber-700 border-amber-200'
-                }
-            case 'rejeitado':
-                return {
-                    label: 'Rejeitado',
-                    icon: <AlertCircle className="h-3.5 w-3.5" />,
-                    classes: 'bg-rose-50 text-rose-700 border-rose-200'
-                }
-            default:
-                return {
-                    label: status,
-                    icon: null,
-                    classes: 'bg-gray-50 text-gray-700 border-gray-200'
-                }
+            case 'auditado': return { label: 'Auditado', icon: <CheckCircle className="h-3.5 w-3.5" />, classes: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+            default: return { label: 'Pendente', icon: <Clock className="h-3.5 w-3.5" />, classes: 'bg-amber-50 text-amber-700 border-amber-200' }
         }
     }
 
     return (
-        <div className="space-y-8 animate-fade-in">
-            {/* Upload Section */}
-            <div className="card">
-                <div className="card-header">
-                    <h3 className="text-base font-semibold text-gray-900">Novo Comprovante</h3>
-                </div>
-                <div className="card-body space-y-6">
-                    {/* Unit Input */}
-                    <div className="max-w-xs">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Unidade
-                        </label>
-                        <input
-                            type="text"
-                            value={unidade}
-                            onChange={(e) => setUnidade(e.target.value)}
-                            placeholder="Ex: Apto 101"
-                            className="w-full"
-                        />
-                    </div>
-
-                    {/* Drop Zone */}
-                    <div
-                        onDragEnter={handleDrag}
-                        onDragLeave={handleDrag}
-                        onDragOver={handleDrag}
-                        onDrop={handleDrop}
-                        className={cn(
-                            "relative border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200",
-                            dragActive
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-gray-200 hover:border-gray-300 bg-gray-50/50",
-                            uploading && "pointer-events-none opacity-60"
-                        )}
-                    >
-                        <input
-                            type="file"
-                            id="receipt-upload"
-                            className="hidden"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={handleFileSelect}
-                            disabled={uploading}
-                        />
-                        <label htmlFor="receipt-upload" className="cursor-pointer block">
-                            <div className={cn(
-                                "mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-4 transition-colors",
-                                dragActive ? "bg-blue-100" : "bg-gray-100"
-                            )}>
-                                {uploading ? (
-                                    <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
-                                ) : (
-                                    <Upload className={cn(
-                                        "h-6 w-6 transition-colors",
-                                        dragActive ? "text-blue-600" : "text-gray-400"
-                                    )} />
-                                )}
-                            </div>
-                            <p className="text-base font-medium text-gray-700 mb-1">
-                                {uploading ? 'Processando OCR...' : 'Arraste o comprovante aqui'}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                ou <span className="text-blue-600 hover:text-blue-700 font-medium">clique para selecionar</span>
-                            </p>
-                            <p className="text-xs text-gray-400 mt-3">
-                                PDF, JPG ou PNG até 10MB
-                            </p>
-                        </label>
-                    </div>
-
-                    {/* Upload Status */}
-                    {uploadStatus !== 'idle' && (
-                        <div className={cn(
-                            "flex items-center gap-3 p-4 rounded-lg",
-                            uploadStatus === 'success'
-                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                : "bg-rose-50 text-rose-800 border border-rose-200"
-                        )}>
-                            {uploadStatus === 'success' ? (
-                                <CheckCircle className="h-5 w-5 text-emerald-600" />
-                            ) : (
-                                <AlertCircle className="h-5 w-5 text-rose-600" />
-                            )}
-                            <div>
-                                <p className="font-medium text-sm">
-                                    {uploadStatus === 'success' ? 'Enviado com sucesso!' : 'Erro no upload'}
-                                </p>
-                                <p className="text-xs opacity-80">{message}</p>
-                            </div>
-                        </div>
+        <div className="space-y-8 animate-fade-in shadow-2xl rounded-3xl bg-white/50 backdrop-blur-sm p-8">
+            <div className="card bg-white p-6 rounded-3xl shadow-lg border-none">
+                <h3 className="text-xl font-bold text-gray-900 mb-6">Novo Comprovante (Cloud)</h3>
+                <div
+                    onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={(e) => { e.preventDefault(); setDragActive(false); if (e.dataTransfer.files[0]) handleFileUpload(e.dataTransfer.files[0]) }}
+                    className={cn(
+                        "relative border-2 border-dashed rounded-3xl p-12 text-center transition-all",
+                        dragActive ? "border-indigo-500 bg-indigo-50" : "border-gray-100 bg-gray-50/50"
                     )}
+                >
+                    <input type="file" id="r-up" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
+                    <label htmlFor="r-up" className="cursor-pointer block">
+                        <div className="w-16 h-16 bg-white shadow-md rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            {uploading ? <Loader2 className="animate-spin text-indigo-600" /> : <Upload className="text-indigo-600" />}
+                        </div>
+                        <p className="font-bold text-gray-700">{uploading ? message : 'Upload de Nota Fiscal'}</p>
+                        <p className="text-xs text-gray-400 mt-2">Arraste ou clique para selecionar</p>
+                    </label>
                 </div>
             </div>
 
-            {/* Receipts List */}
-            <div className="card">
-                <div className="card-header flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-gray-900">Comprovantes Enviados</h3>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                        {receipts.length} registros
-                    </span>
-                </div>
-                <div className="divide-y divide-gray-100">
-                    {receipts.map((receipt, index) => {
-                        const statusConfig = getStatusConfig(receipt.status)
-                        const isPDF = receipt.fileName.endsWith('.pdf')
-
+            <div className="card bg-white p-6 rounded-3xl shadow-lg border-none">
+                <h3 className="text-lg font-bold text-gray-900 mb-6 px-2">Histórico de Comprovantes</h3>
+                <div className="divide-y divide-gray-50">
+                    {receipts.map((r) => {
+                        const s = getStatusConfig(r.status_auditoria)
                         return (
-                            <div
-                                key={receipt.id}
-                                className="p-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors animate-fade-in"
-                                style={{ animationDelay: `${index * 50}ms` }}
-                            >
-                                {/* File Icon */}
-                                <div className={cn(
-                                    "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
-                                    isPDF ? "bg-rose-100" : "bg-blue-100"
-                                )}>
-                                    {isPDF ? (
-                                        <FileText className="h-5 w-5 text-rose-600" />
-                                    ) : (
-                                        <ImageIcon className="h-5 w-5 text-blue-600" />
-                                    )}
+                            <div key={r.id} className="py-4 flex items-center gap-4 px-2 hover:bg-gray-50/50 rounded-2xl transition-all">
+                                <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                    <FileText className="h-6 w-6" />
                                 </div>
-
-                                {/* Info */}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 truncate">
-                                        {receipt.fileName}
-                                    </p>
-                                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                                        <span>{receipt.unidade}</span>
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-gray-900">{r.fornecedores?.razao_social || 'Fornecedor'}</p>
+                                    <div className="flex gap-3 text-xs text-gray-500 mt-1 font-medium">
+                                        <span>{r.data_emissao}</span>
                                         <span>•</span>
-                                        <span>{new Date(receipt.uploadedAt).toLocaleDateString('pt-BR')}</span>
-                                        {receipt.valor && (
-                                            <>
-                                                <span>•</span>
-                                                <span className="font-medium text-gray-700">
-                                                    R$ {receipt.valor.toFixed(2)}
-                                                </span>
-                                            </>
-                                        )}
+                                        <span className="text-indigo-600">R$ {r.valor.toFixed(2)}</span>
                                     </div>
                                 </div>
-
-                                {/* OCR Confidence */}
-                                {receipt.ocrConfianca && (
-                                    <div className="hidden sm:flex flex-col items-end">
-                                        <span className="text-xs text-gray-500">OCR</span>
-                                        <span className={cn(
-                                            "text-sm font-medium",
-                                            receipt.ocrConfianca >= 80 ? "text-emerald-600" :
-                                                receipt.ocrConfianca >= 60 ? "text-amber-600" : "text-rose-600"
-                                        )}>
-                                            {receipt.ocrConfianca}%
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* Status Badge */}
-                                <div className={cn(
-                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
-                                    statusConfig.classes
-                                )}>
-                                    {statusConfig.icon}
-                                    {statusConfig.label}
-                                </div>
-
-                                {/* Actions */}
-                                <div className="flex items-center gap-1">
-                                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                                        <Eye className="h-4 w-4" />
-                                    </button>
+                                <div className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase border", s.classes)}>
+                                    {s.label}
                                 </div>
                             </div>
                         )
                     })}
-                </div>
-            </div>
-
-            {/* Info Box */}
-            <div className="flex items-start gap-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <FileCheck className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
-                    <p className="text-sm font-medium text-blue-900">Como funciona</p>
-                    <p className="text-sm text-blue-700 mt-1">
-                        Os comprovantes são processados automaticamente via OCR para extrair valor, data e NSU.
-                        Em seguida, são cruzados com o extrato bancário para validação.
-                    </p>
                 </div>
             </div>
         </div>
