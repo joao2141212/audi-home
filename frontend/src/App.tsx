@@ -154,15 +154,24 @@ export default function App() {
 
                     {/* Scrollable Content View */}
                     <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 scroll-smooth">
-                        <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            {activeTab === 'dashboard' && (
-                                user?.role === 'master' ? <MasterDashboard /> : <Dashboard />
-                            )}
-                            {activeTab === 'budget' && <BudgetManager />}
-                            {activeTab === 'revenue' && <RevenueAudit />}
-                            {activeTab === 'compliance' && <ComplianceReport />}
-                            {activeTab === 'reserve' && <ReserveFund />}
-                            {activeTab === 'statements' && (
+                        <div className="max-w-6xl mx-auto space-y-8">
+                            {/* Use CSS visibility instead of conditional rendering to prevent remounting */}
+                            <div className={activeTab === 'dashboard' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                {user?.role === 'master' ? <MasterDashboard /> : <Dashboard />}
+                            </div>
+                            <div className={activeTab === 'budget' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                <BudgetManager />
+                            </div>
+                            <div className={activeTab === 'revenue' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                <RevenueAudit />
+                            </div>
+                            <div className={activeTab === 'compliance' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                <ComplianceReport />
+                            </div>
+                            <div className={activeTab === 'reserve' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                <ReserveFund />
+                            </div>
+                            <div className={activeTab === 'statements' ? 'block animate-in fade-in duration-300' : 'hidden'}>
                                 <div className="space-y-10">
                                     <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
                                         <div>
@@ -179,8 +188,8 @@ export default function App() {
                                         <StatementUpload />
                                     </div>
                                 </div>
-                            )}
-                            {activeTab === 'receipts' && (
+                            </div>
+                            <div className={activeTab === 'receipts' ? 'block animate-in fade-in duration-300' : 'hidden'}>
                                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
                                     <div>
                                         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Auditoria Fiscal Inteligente</h2>
@@ -188,8 +197,8 @@ export default function App() {
                                     </div>
                                     <ReceiptUpload />
                                 </div>
-                            )}
-                            {activeTab === 'expenses' && (
+                            </div>
+                            <div className={activeTab === 'expenses' ? 'block animate-in fade-in duration-300' : 'hidden'}>
                                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
                                     <div className="mb-6">
                                         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Auditoria de Despesas</h2>
@@ -197,8 +206,8 @@ export default function App() {
                                     </div>
                                     <ExpenseAudit />
                                 </div>
-                            )}
-                            {activeTab === 'reconciliation' && (
+                            </div>
+                            <div className={activeTab === 'reconciliation' ? 'block animate-in fade-in duration-300' : 'hidden'}>
                                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
                                     <div className="mb-6">
                                         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Central de Reconciliação</h2>
@@ -206,7 +215,7 @@ export default function App() {
                                     </div>
                                     <ReconciliationQueue />
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </div>
                 </main>
@@ -214,3 +223,4 @@ export default function App() {
         </QueryClientProvider>
     )
 }
+

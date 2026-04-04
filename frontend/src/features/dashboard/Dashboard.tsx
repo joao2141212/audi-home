@@ -37,7 +37,10 @@ export function Dashboard() {
     const [data, setData] = useState<DashboardData>(fallbackData)
 
     const fetchDashboardData = async () => {
-        if (!user?.condominio_id) return
+        if (!user?.condominio_id) {
+            setLoading(false)
+            return
+        }
 
         try {
             setRefreshing(true)

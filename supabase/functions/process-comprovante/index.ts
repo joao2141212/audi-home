@@ -1,236 +1,215 @@
-/**
- * Edge Function: process-comprovante
- * 
- * Processa upload de comprovantes de pagamento:
- * 1. Recebe PDF/Imagem
- * 2. Extrai dados com Gemini (OCR)
- * 3. Valida CNPJ na Receita Federal (CNPJ.ws)
- * 4. Detecta fraude
- * 5. Reconcilia com extrato bancário
- * 6. Salva no Supabase
- */
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { FraudDetector } from "../_shared/fraud-detector.ts";
-import { RobustValidator } from "../_shared/robust-validator.ts";
-import { CNPJService } from "../_shared/cnpj-service.ts";
-import { OCRService } from "../_shared/ocr-service.ts";
-
-declare const Deno: any;
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
-serve(async (req: Request) => {
+serve(async (req) => {
     if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders });
+        return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        const formData = await req.formData();
-        const file = formData.get('file') as File;
-        const condominioId = formData.get('condominio_id') as string || 'default';
+        const { comprovante_id, file_base64, mime_type, filename } = await req.json()
 
-        if (!file) {
-            return new Response(
-                JSON.stringify({ error: 'Arquivo não enviado' }),
-                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+        const supabase = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        )
+
+        const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')!
+        const MODEL = 'gemini-2.0-flash-lite'
+
+        // ── STEP 1: OCR via Gemini Flash Lite ──────────────────────────────
+        const prompt = `Você é um auditor fiscal brasileiro especializado em Notas Fiscais e recibos.
+Analise este documento e extraia os seguintes campos em formato JSON puro (sem markdown):
+{
+  "cnpj_emissor": "somente números, sem formatação",
+  "razao_social_emissor": "nome completo da empresa emissora",
+  "data_emissao": "formato YYYY-MM-DD",
+  "valor_total": número decimal,
+  "numero_nf": "número da nota se presente",
+  "descricao_servico": "descrição do serviço ou produto",
+  "natureza_servico": "Manutenção|Limpeza|Obra|Segurança|Administração|Outros",
+  "municipio_emissor": "cidade",
+  "confianca": número de 0 a 100 indicando sua certeza na extração
+}
+Se o documento não for uma NF ou recibo válido, retorne { "erro": "DOCUMENTO_INVALIDO" }.
+Se algum campo não estiver presente, use null.`
+
+        const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            { inline_data: { mime_type, data: file_base64 } }
+                        ]
+                    }],
+                    generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+                })
+            }
+        )
+
+        if (!geminiRes.ok) {
+            throw new Error(`Gemini API error: ${geminiRes.status}`)
         }
 
-        const startTime = Date.now();
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const base64 = btoa(String.fromCharCode(...bytes));
-        const mimeType = file.type || 'application/pdf';
+        const geminiData = await geminiRes.json()
+        let rawText = geminiData.candidates[0]?.content?.parts[0]?.text || ''
+        rawText = rawText.replace(/```json\s*/g, '').replace(/```/g, '').trim()
 
-        console.log(`📤 Processando: ${file.name} (${bytes.length} bytes)`);
+        let ocrResult: any = {}
+        try {
+            ocrResult = JSON.parse(rawText)
+        } catch {
+            ocrResult = { erro: 'PARSE_ERROR', raw: rawText }
+        }
 
-        // Inicializar Supabase
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        if (ocrResult.erro) {
+            await supabase.from('comprovantes').update({
+                ocr_processado: true,
+                ocr_erro: ocrResult.erro,
+                status_auditoria: 'rejeitado',
+                fraud_score: 100,
+                fraud_flags: ['DOCUMENTO_INVALIDO']
+            }).eq('id', comprovante_id)
 
-        // Gerar IDs
-        const timestamp = new Date().toISOString();
-        const comprovanteId = crypto.randomUUID();
-        
-        const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const arquivo_hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return new Response(JSON.stringify({ success: false, erro: ocrResult.erro }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+        }
 
-        // 1. Extrair dados com OCR (Gemini)
-        console.log('🔍 Extraindo dados com OCR...');
-        const ocrService = new OCRService();
-        const ocrResult = await ocrService.processReceipt(base64, mimeType);
-        console.log(`✅ OCR: Valor=${ocrResult.ocr_valor}, CNPJ=${ocrResult.ocr_cnpj}`);
+        // ── STEP 2: CNPJ Validation via BrasilAPI (with cache) ─────────────
+        let cnpjStatus = 'NAO_VERIFICADO'
+        let cnpjCnaes: string[] = []
 
-        // 2. Validar CNPJ (se encontrado)
-        let validacaoCnpj = null;
-        let riskLevel = null;
+        if (ocrResult.cnpj_emissor) {
+            const cleanCnpj = ocrResult.cnpj_emissor.replace(/\D/g, '')
 
-        if (ocrResult.ocr_cnpj) {
-            console.log('🔍 Validando CNPJ...');
-            const cnpjService = new CNPJService();
-            try {
-                const supplierData = await cnpjService.validateCNPJ(ocrResult.ocr_cnpj);
-                riskLevel = cnpjService.getRiskLevel(supplierData);
-                validacaoCnpj = {
-                    consultado: true,
-                    existe: true,
-                    ativo: supplierData.status_receita === 'ATIVA',
-                    razao_social_rfb: supplierData.razao_social,
-                    cnae: supplierData.cnae_principal.descricao,
-                    status: supplierData.status_receita,
-                    risk_level: riskLevel
-                };
-                console.log(`✅ CNPJ: ${supplierData.razao_social} - ${supplierData.status_receita}`);
-            } catch (e: any) {
-                validacaoCnpj = {
-                    consultado: true,
-                    existe: false,
-                    erro: e.message
-                };
-                console.log(`❌ CNPJ não encontrado: ${e.message}`);
+            // Check cache first (7 days)
+            const { data: cached } = await supabase
+                .from('fornecedores')
+                .select('*')
+                .eq('cnpj', cleanCnpj)
+                .single()
+
+            if (cached?.rfb_ultima_consulta &&
+                Date.now() - new Date(cached.rfb_ultima_consulta).getTime() < 7 * 24 * 60 * 60 * 1000) {
+                cnpjStatus = cached.situacao_cadastral || 'DESCONHECIDA'
+                cnpjCnaes = [cached.cnae_principal_codigo, ...(cached.cnaes_secundarios || [])].filter(Boolean)
+            } else {
+                try {
+                    const rfbRes = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`)
+                    if (rfbRes.ok) {
+                        const rfbData = await rfbRes.json()
+                        cnpjStatus = rfbData.descricao_situacao_cadastral || 'DESCONHECIDA'
+                        cnpjCnaes = [
+                            String(rfbData.cnae_fiscal || ''),
+                            ...(rfbData.cnaes_secundarios?.map((c: any) => String(c.codigo)) || [])
+                        ].filter(Boolean)
+
+                        await supabase.from('fornecedores').upsert({
+                            cnpj: cleanCnpj,
+                            razao_social: rfbData.razao_social,
+                            nome_fantasia: rfbData.nome_fantasia,
+                            situacao_cadastral: cnpjStatus,
+                            cnae_principal_codigo: String(rfbData.cnae_fiscal || ''),
+                            cnaes_secundarios: rfbData.cnaes_secundarios,
+                            rfb_ultima_consulta: new Date().toISOString(),
+                            rfb_raw_response: rfbData
+                        }, { onConflict: 'cnpj' })
+                    }
+                } catch (_) {
+                    cnpjStatus = 'ERRO_CONSULTA'
+                }
             }
         }
 
-        // 3. Detecção de Fraude
-        console.log('🕵️ Analisando fraude...');
-        const fraudDetector = new FraudDetector();
-        const headerStr = new TextDecoder('latin1').decode(bytes.slice(0, 2048));
-        const fraudResult = fraudDetector.analyze(mimeType, bytes.length, headerStr);
-        console.log(`🛡️ Score de Fraude: ${fraudResult.fraud_score}`);
+        // ── STEP 3: Fraud Score ─────────────────────────────────────────────
+        let fraudScore = 0
+        const fraudFlags: string[] = []
 
-        // 4. Reconciliação Bancária
-        console.log('🏦 Verificando reconciliação bancária...');
-
-        const { data: transacoes } = await supabase
-            .from('transacoes_bancarias')
-            .select('*')
-            .eq('condominio_id', condominioId)
-            .limit(100)
-            .order('data_transacao', { ascending: false });
-
-        const robustValidator = new RobustValidator();
-        const reconciliationResult = robustValidator.validatePayment(
-            ocrResult.ocr_valor || 0,
-            ocrResult.ocr_data || new Date().toISOString().split('T')[0],
-            null,
-            timestamp,
-            ocrResult.ocr_cnpj || null,
-            comprovanteId,
-            transacoes || []
-        );
-        console.log(`🤝 Reconciliação: ${reconciliationResult.status}`);
-
-        // 5. Determinar status de auditoria
-        let statusAuditoria = 'pendente';
-        let motivoStatus = '';
-
-        if (fraudResult.documento_alterado || fraudResult.fraud_score > 50) {
-            statusAuditoria = 'suspeito';
-            motivoStatus = 'Alto risco de fraude detectado';
-        } else if (reconciliationResult.status === 'APPROVED') {
-            statusAuditoria = 'aprovado';
-            motivoStatus = reconciliationResult.reason;
-        } else if (riskLevel === 'CRITICAL_RISK') {
-            statusAuditoria = 'rejeitado';
-            motivoStatus = 'CNPJ inativo ou baixado';
-        } else if (validacaoCnpj?.ativo) {
-            statusAuditoria = 'auditado';
-            motivoStatus = 'CNPJ ativo e validado';
+        if (!ocrResult.cnpj_emissor) {
+            fraudScore += 40; fraudFlags.push('SEM_CNPJ')
+        } else if (cnpjStatus !== 'ATIVA') {
+            fraudScore += 35; fraudFlags.push(`CNPJ_${cnpjStatus.replace(/\s/g, '_')}`)
         }
 
-        // 6. Salvar no Supabase
-        const statusClean = statusAuditoria === 'auditado' ? 'aprovado' : statusAuditoria;
-        const { error: insertError } = await supabase
+        const cnaeMap: Record<string, string[]> = {
+            'Manutenção': ['4321', '4322', '4329', '4399', '3313', '3314', '4330'],
+            'Limpeza': ['8121', '8122', '8129'],
+            'Obra': ['4120', '4330', '4391'],
+            'Segurança': ['8011', '8012'],
+            'Administração': ['6822', '6821', '6811']
+        }
+        const natureza = ocrResult.natureza_servico || 'Outros'
+        const expected = cnaeMap[natureza] || []
+        if (expected.length > 0 && cnpjCnaes.length > 0) {
+            const hasCnae = cnpjCnaes.some(c => expected.some(r => c.replace(/\D/g, '').startsWith(r)))
+            if (!hasCnae) { fraudScore += 25; fraudFlags.push('CNAE_INCOMPATIVEL') }
+        }
+
+        if ((ocrResult.confianca || 100) < 60) {
+            fraudScore += 20; fraudFlags.push('BAIXA_CONFIANCA_OCR')
+        }
+
+        // Duplicate detection by filename
+        const { data: dupes } = await supabase
             .from('comprovantes')
-            .insert({
-                id: comprovanteId,
-                condominio_id: condominioId,
-                arquivo_nome: file.name,
-                arquivo_hash: arquivo_hash,
-                tipo_arquivo: mimeType.includes('pdf') ? 'pdf' : (mimeType.includes('png') ? 'png' : 'jpg'),
-                tamanho_bytes: bytes.length,
-                ocr_processado: true,
-                ocr_valor: ocrResult.ocr_valor,
-                ocr_data: ocrResult.ocr_data,
-                ocr_cnpj: ocrResult.ocr_cnpj,
-                ocr_razao_social: ocrResult.ocr_razao_social,
-                ocr_nsu: ocrResult.ocr_nsu,
-                ocr_codigo_barras: ocrResult.ocr_codigo_barras,
-                cnpj_status: validacaoCnpj?.status,
-                fraud_score: fraudResult.fraud_score,
-                fraud_flags: fraudResult.fraud_flags,
-                status: statusClean
-            });
+            .select('id')
+            .neq('id', comprovante_id)
+            .eq('arquivo_nome', filename)
+            .limit(1)
 
-        const processingTime = Date.now() - startTime;
+        if (dupes && dupes.length > 0) {
+            fraudScore += 50; fraudFlags.push('POSSIVEL_DUPLICATA')
+        }
 
-        // 7. Retornar resposta
-        return new Response(
-            JSON.stringify({
-                id: comprovanteId,
-                status: 'processado',
+        const finalStatus = fraudScore >= 60 ? 'suspeito' : fraudScore >= 30 ? 'alerta' : 'auditado'
 
-                dados_extraidos: {
-                    cnpj: ocrResult.ocr_cnpj,
-                    razao_social: ocrResult.ocr_razao_social,
-                    valor: ocrResult.ocr_valor,
-                    data: ocrResult.ocr_data,
-                    nsu: ocrResult.ocr_nsu,
-                    codigo_barras: ocrResult.ocr_codigo_barras
-                },
+        // ── STEP 4: Persist results ─────────────────────────────────────────
+        await supabase.from('comprovantes').update({
+            ocr_processado: true,
+            ocr_confianca: ocrResult.confianca || 80,
+            ocr_valor: ocrResult.valor_total,
+            ocr_data: ocrResult.data_emissao,
+            ocr_cnpj: ocrResult.cnpj_emissor,
+            ocr_razao_social: ocrResult.razao_social_emissor,
+            ocr_nsu: ocrResult.numero_nf,
+            ocr_texto_completo: rawText,
+            cnpj_status: cnpjStatus,
+            cnpj_cnae_compat: !fraudFlags.includes('CNAE_INCOMPATIVEL'),
+            cnpj_validado_em: new Date().toISOString(),
+            natureza_servico: natureza,
+            fraud_score: Math.min(fraudScore, 100),
+            fraud_flags: fraudFlags,
+            status_auditoria: finalStatus,
+            valor: ocrResult.valor_total,
+            data_emissao: ocrResult.data_emissao,
+            descricao: ocrResult.descricao_servico
+        }).eq('id', comprovante_id)
 
-                validacao_cnpj: validacaoCnpj,
+        return new Response(JSON.stringify({
+            success: true,
+            fraud_score: Math.min(fraudScore, 100),
+            fraud_flags: fraudFlags,
+            status: finalStatus,
+            cnpj_status: cnpjStatus,
+            ocr: ocrResult
+        }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
 
-                fraude: {
-                    score: fraudResult.fraud_score,
-                    flags: fraudResult.fraud_flags,
-                    documento_alterado: fraudResult.documento_alterado
-                },
-
-                reconciliacao: {
-                    status: reconciliationResult.status,
-                    reason: reconciliationResult.reason,
-                    matches: reconciliationResult.matches.slice(0, 5)
-                },
-
-                auditoria: {
-                    status: statusAuditoria,
-                    motivo: motivoStatus
-                },
-
-                processamento: {
-                    metodo: 'gemini_ai',
-                    modelo: 'gemini-2.5-flash',
-                    tokens_usados: ocrResult.tokens_used,
-                    tempo_ms: processingTime
-                },
-
-                armazenamento: {
-                    local: 'Supabase PostgreSQL',
-                    tabela: 'comprovantes',
-                    registro_id: comprovanteId,
-                    timestamp: timestamp,
-                    persistente: true,
-                    erro: insertError?.message || null
-                }
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-
-    } catch (error: any) {
-        console.error('❌ Erro:', error);
-        return new Response(
-            JSON.stringify({
-                error: error.message,
-                stack: error.stack
-            }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
     }
-});
+})
