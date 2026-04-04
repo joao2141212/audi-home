@@ -1,0 +1,126 @@
+[stm-text v2.0.0] audicondo-roadmap
+μ/meta=type:roadmap,date:2026-04-04,status:active,version:2.0
+χ/lang=pt-br
+
+# ============================================================
+# FASES CONCLUÍDAS ✅
+# ============================================================
+σ/completed:
+  FASE_A=storage_upload_seguro+edge_fn_gemini_server_side+remove_key_frontend ✅
+  FASE_B=fraud_score_real(CNPJ,CNAE,duplicata,hash) ✅
+  FASE_C=fila_aprovacao_humana(audit_acoes,ApprovalQueue,3_acoes) ✅
+  MULTI_VERIFY=deterministic_checks.ts+IA_independentes+merge_scores ✅
+  PIX_FRAUD=E2E_validation+ISPB+data+autotransferencia+chave_format ✅
+  MORADORES=tabela+CRUD+views+red_flags+stats ✅
+  HISTORICO=ComprovantesHistory+filtros+download+audit_trail ✅
+  AUTH_STABLE=getSession+timeout+loading_guard+persistent_logs ✅
+  BRANDING=logo_sem_fundo+todos_locais+favicon+title ✅
+  MASTER_DASH=role_gate+KPIs_globais+fraud_alert+debug_logs ✅
+
+# ============================================================
+# FASE D — MASTER ANTI-FRAUDE AVANÇADO (PRÓXIMA)
+# ============================================================
+σ/fase_D=Master_Antifraude_Avancado:
+  prioridade=ALTA
+  arquivo_alvo=frontend/src/features/dashboard/MasterDashboard.tsx
+
+  D1_red_flags_automaticos:
+    - sindico_aprova_100pct_sem_rejeicao→possivel_conluio
+    - condo_com_gt3_suspeitos_no_mes→alerta
+    - mesmo_CNPJ_em_multiplos_condos→possivel_cartel
+    - valor_medio_NF_crescendo_gt20pct_mes_a_mes→inflacao_artificial
+    query=audit_acoes JOIN comprovantes GROUP_BY condominio_id
+
+  D2_api_usage_tracker:
+    - chamadas_Gemini_por_condo(hoje,semana,mes)
+    - alerta_se_gt80pct_500_limite
+    - base_para_billing_futuro_por_uso
+    implementacao=tabela_api_logs(condo_id,funcao,created_at)
+      OR=conta_via_comprovantes.ocr_processado_em
+
+  D3_alertas_automaticos:
+    - webhook_ou_email_quando_fraud_score_gt70
+    - resumo_diario_master(novos_suspeitos,aprovados,rejeitados)
+    ferramenta=Supabase_pg_net ou Resend_email
+
+# ============================================================
+# FASE E — ONBOARDING NOVOS CLIENTES (MASTER FLOW)
+# ============================================================
+σ/fase_E=Onboarding_Clientes:
+  prioridade=ALTA(operacional)
+  problema=hoje_master_precisa_SQL_direto_para_criar_condo+sindico
+
+  E1_form_master:
+    - formulario_na_tela_master:nome_condo,cnpj,email_sindico,senha_temp
+    - chama_supabase_admin_api=criar_user+perfil+condo_em_1_clique
+    - email_boas_vindas_com_credenciais
+
+  E2_gestao_planos:
+    - campo_plano_em_condominios(basico|profissional|enterprise)
+    - limite_de_uploads_por_plano
+    - tela_master_vê_plano_de_cada_cliente
+
+# ============================================================
+# FASE F — VINCULAR MORADOR AO UPLOAD (FLUXO PIX COMPLETO)
+# ============================================================
+σ/fase_F=Morador_Upload_Link:
+  prioridade=MEDIA
+  problema=comprovante_pix_nao_é_vinculado_ao_morador_automaticamente
+
+  F1_upload_com_morador:
+    - dropdown_"selecione_o_morador"_no_UploadComprovantes
+    - salva_morador_id_no_comprovante
+    - gemini_confirma_se_nome_pagador_bate_com_morador_selecionado(cross_check)
+
+  F2_matching_automatico:
+    - apos_OCR_extrai_pagador_nome+cpf
+    - busca_em_moradores(fuzzy_nome_ou_cpf)
+    - se_encontra→auto_link+flag_CONFIRMADO
+    - se_nao→flag_MORADOR_NAO_IDENTIFICADO(+15pts_score)
+
+# ============================================================
+# FASE G — TESTE E2E REAL DO FLUXO PIX
+# ============================================================
+σ/fase_G=Teste_E2E_Real:
+  prioridade=MEDIA(validacao)
+  problema=fluxo_nunca_foi_testado_com_arquivo_real_em_producao
+
+  G1_upload_comprovante_real:
+    - enviar_o_comprovante_bradesco_pix_fornecido_pelo_user
+    - verificar_retorno_gemini(tipo=COMPROVANTE_PIX,pagador,recebedor,E2E)
+    - verificar_deterministic_checks(AUTOTRANSFERENCIA=true,score=90)
+    - confirmar_que_aparece_na_fila_de_revisao_como_suspeito
+
+  G2_upload_NF_real:
+    - enviar_nota_fiscal_de_fornecedor_real
+    - verificar_CNPJ_valido+CNAE_compativel
+    - confirmar_status=auditado(score<30)
+
+  G3_teste_duplicata:
+    - enviar_mesmo_arquivo_2x
+    - confirmar_flag=ARQUIVO_DUPLICADO+CODIGO_E2E_DUPLICADO
+
+# ============================================================
+# FASE H — CORREÇÕES MENORES CONHECIDAS
+# ============================================================
+σ/fase_H=Bugs_Conhecidos:
+  prioridade=BAIXA
+
+  H1_reserva_config_406:
+    problema=GET reserva_config retorna 406 quando nao ha config cadastrada
+    fix=trocar .single() por .maybeSingle() em ReserveFund.tsx
+    impacto=erro_no_console_mas_nao_quebra_nada
+
+  H2_master_sem_credenciais_documentadas:
+    problema=nao_ha_usuario_master_de_teste_documentado
+    fix=criar_usuario_master+documentar_no_stm
+
+# ============================================================
+# PRIORIDADE RECOMENDADA
+# ============================================================
+σ/next_actions_ordered:
+  1=FASE_D(Master_Antifraude)→valor_negocio_alto_pra_vc_como_dono
+  2=FASE_G(Teste_E2E_real)→validar_pipeline_antes_de_clientes_reais
+  3=FASE_E(Onboarding)→necessario_para_escalar_sem_SQL_manual
+  4=FASE_F(Morador_Link)→completa_o_fluxo_Pix_end_to_end
+  5=FASE_H(Bugs)→cosmético,qualquer_momento

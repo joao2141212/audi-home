@@ -1,0 +1,162 @@
+[stm-text v2.0.0] audicondo-state
+μ/meta=project:AudiCondo,version:2.0,date:2026-04-04,url:auditcondo.com
+χ/lang=pt-br
+φ/pol=supabase_only,edge_functions_deno,RLS_mandatory,multi_tenant_RLS
+
+# ============================================================
+# STACK
+# ============================================================
+σ/stack:
+  frontend=React+Vite+TypeScript+TailwindCSS→deploy:Netlify
+  db=Supabase(Postgres+Auth+Storage+EdgeFunctions_Deno)
+  ai=Gemini_3.1_Flash_Lite_Preview(server_side_only,500req/day)
+  cnpj_api=BrasilAPI(free,cached_7d_em_fornecedores)
+  storage=Supabase_Storage(bucket:comprovantes,public_url_stored_in_arquivo_url)
+  repo=github:joao2141212/audi-home
+
+# ============================================================
+# MULTI-TENANT HIERARCHY
+# ============================================================
+σ/tenant_hierarchy:
+  Administradora→Condominio→Perfil(auth.users)
+  role=master|sindico
+  RLS_fn=user_has_condo_access(condo_id)→BOOL
+  master=sees_all_condos,no_condo_id_filter
+  sindico=sees_only_own_condo(perfis.condominio_id)
+
+# ============================================================
+# SCHEMA LIVE (v1.5 — 2026-04-04)
+# ============================================================
+σ/tables_live:
+  administradoras(id,nome,cnpj,ativo)
+  condominios(id,administradora_id,nome,cnpj,ativo)
+  perfis(id→auth.users,role,condominio_id,nome,ativo)
+  fornecedores(cnpj_UNIQUE,razao_social,situacao_cadastral,
+    cnae_principal_codigo,cnaes_secundarios_json,
+    rfb_ultima_consulta,rfb_raw_response)
+  extratos_bancarios(condominio_id,arquivo_hash_UNIQUE,periodo,fonte)
+  transacoes_bancarias(condominio_id,extrato_id,date,valor,
+    type=CREDIT|DEBIT,nsu,conciliado,comprovante_id)
+  comprovantes(condominio_id,morador_id→moradores,
+    arquivo_nome,arquivo_url,arquivo_hash,tipo_arquivo,
+    tipo_documento=COMPROVANTE_PIX|NOTA_FISCAL|BOLETO|RECIBO|DESCONHECIDO,
+    ocr_processado,ocr_confianca,ocr_valor,ocr_data,
+    ocr_cnpj,ocr_razao_social,ocr_nsu,ocr_texto_completo,
+    cnpj_status,cnpj_cnae_compat,
+    fraud_score(0-100),fraud_flags[],
+    status_auditoria=pendente|auditado|suspeito|alerta|rejeitado,
+    pix_e2e_id,pix_pagador_doc,pix_pagador_banco,
+    pix_recebedor_doc,pix_recebedor_banco,pix_chave,
+    pix_autotransferencia,
+    e2e_id_valido,e2e_banco_compativel,e2e_data_compativel,
+    motivo_rejeicao,aprovado_por,aprovado_em,
+    natureza_servico,descricao,valor,data_emissao)
+  moradores(id,condominio_id,nome,cpf,email,telefone,
+    unidade,bloco,tipo=proprietario|inquilino|responsavel,
+    ativo,data_entrada,data_saida,observacoes)
+  audit_acoes(id,comprovante_id,condominio_id,usuario_id,
+    usuario_nome,acao=aprovado|rejeitado|solicitado_esclarecimento|escalado_master,
+    motivo,fraud_score_na_acao,created_at)
+
+σ/views_live:
+  view_macro_financeira — KPIs agregados por condomínio
+  view_fila_revisao — comprovantes status IN(suspeito,alerta,pendente) + ultima_acao
+  view_historico_comprovantes — todos comprovantes JOIN moradores + audit_acoes
+  view_moradores_resumo — moradores + COUNT comprovantes por status + total_pago
+
+# ============================================================
+# FRAUD PIPELINE — MULTI-VERIFY (CAMADA DUPLA)
+# ============================================================
+σ/fraud_pipeline:
+  TYPE=multi_verify(IA + determinístico independentes, score=max(ambos), flags=union)
+
+  GEMINI_LAYER(IA):
+    - Identifica tipo_documento automaticamente
+    - Extrai campos estruturados por tipo
+    - Detecta inconsistências visuais (fontes, edições)
+    - Confiança 0-100 por extração
+    - Alerta AUTOTRANSFERENCIA_SUSPEITA se nomes/docs iguais
+
+  DETERMINISTIC_LAYER(scripts):
+    arquivo=deterministic-checks.ts
+    checks:
+      AUTOTRANSFERENCIA=pagador_cpf==recebedor_cpf(+90pts,crítico)
+      CODIGO_E2E_INVALIDO=formato≠E{8}{8}{4}{11}32chars(+65pts,crítico)
+      BANCO_E2E_INCOMPATIVEL=ISPB_no_E2E≠banco_declarado(+55pts,crítico)
+      DATA_E2E_INCOMPATIVEL=data_no_E2E≠data_doc(+50pts,crítico)
+      SEM_CODIGO_E2E=comprovante_pix_sem_numero_controle(+35pts)
+      CHAVE_PIX_INVALIDA=formato_chave_invalido(+30pts)
+    ispb_map=30_bancos_brasileiros_cadastrados
+
+  NF_LAYER(para NOTA_FISCAL|RECIBO):
+    CNPJ_validacao=BrasilAPI(cache_7d)
+    SEM_CNPJ(+40pts),CNPJ_BAIXADA(+35pts),CNAE_INCOMPATIVEL(+25pts)
+    INCONSISTENCIAS_VISUAIS(+15pts_por_alerta,max+40)
+
+  SCORE_STATUS:
+    0-29=auditado, 30-59=alerta, 60-100=suspeito
+    CRITICO(AUTOTRANSFERENCIA|E2E_INVALIDO|E2E_BANCO|DUPLICATA)→suspeito_direto
+
+  DUPLICATE_DETECTION:
+    L1=arquivo_hash(SHA-256 de path/nome)
+    L2=pix_e2e_id UNIQUE no banco
+
+# ============================================================
+# EDGE FUNCTIONS (SUPABASE DENO)
+# ============================================================
+σ/edge_functions:
+  process-comprovante:
+    trigger=frontend_upload
+    flow=base64→Gemini_OCR→tipo_detect→deterministic_checks→merge_scores→upsert_comprovante
+    files=[index.ts, deterministic-checks.ts]
+    key=GEMINI_API_KEY(secret_supabase,nunca_exposta_frontend)
+    model=gemini-3.1-flash-lite-preview
+  process-extrato:
+    flow=upload_pdf→parse→insert_transacoes
+  transactions:
+    flow=CRUD_transacoes
+  reconciliation:
+    flow=match(valor,date±3d)→link_comprovante_transacao
+
+# ============================================================
+# FRONTEND — TELAS ATIVAS
+# ============================================================
+σ/screens_live:
+  Dashboard — KPIs(orçamento,despesas,reserva), fluxo caixa, radar auditoria
+  Orçamento — CRUD categorias, execução orçamentária %
+  Extratos — upload extrato bancário, histórico transações
+  Upload_Comprovantes — dropzone(PDF,JPG,PNG,XML)→Edge_Fn→resultado_OCR
+  Historico_Comprovantes — tabela todos docs, filtros(status,tipo,morador,data), download, expand
+  Fila_de_Revisao — docs suspeitos/alerta/pendente, aprovar/rejeitar/esclarecimento, audit_acoes
+  Moradores — CRUD moradores/inquilinos, red_flags inline, stats por unidade
+  Receitas, Despesas, Compliance, Reserva, Reconciliação — módulos operacionais
+  Master_Dashboard — KPIs globais(role=master only), tabela condominios, debug_logs
+
+σ/auth_guards:
+  getSession()_on_mount(não_depende_de_evento)
+  loading_guard=8s_max(nunca_trava)
+  query_timeout=5s
+  persistent_debug_log=localStorage(sobrevive_reload)
+  error_screen=mostra_log_se_auth_falhar
+
+σ/branding:
+  logo=logo-audicondo.png(sem_fundo_PNG_transparente)
+  logo_locations=[sidebar,mobile_header,login_page,favicon]
+  title_html=AudiCondo_Sistema_Auditoria_Condominio
+
+# ============================================================
+# CREDENCIAIS / INFRA
+# ============================================================
+σ/infra:
+  supabase_project=nziggqeoeqaenugixtwr
+  supabase_url=https://nziggqeoeqaenugixtwr.supabase.co
+  netlify_project=audi-home
+  prod_url=https://auditcondo.com
+  gemini_key=configurada_como_secret_supabase(GEMINI_API_KEY)
+  gemini_model=gemini-3.1-flash-lite-preview
+  gemini_limit=500req/dia
+
+σ/test_users:
+  sindico_piloto1=sindico.piloto1@audi.condo / AudiCondo2026MasterPass!
+  condominio=Condominio_Piloto_1_Residencial_Paulista
+  condo_id=b8583127-cce0-417c-8f78-e5a1bb2f1cd9
