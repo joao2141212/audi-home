@@ -4,7 +4,6 @@ import {
     TrendingUp,
     AlertTriangle,
     CheckCircle2,
-    DollarSign,
     Building
 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -46,7 +45,9 @@ export function BudgetManager() {
             }, {})
 
             const combined = (budgetData || []).map((b: any) => ({
-                ...b,
+                id: b.id,
+                categoria: b.categoria,
+                valor_planejado: parseFloat(b.valor_previsto) || 0,
                 valor_real: expensesByCategory[b.categoria] || 0
             }))
 
@@ -124,18 +125,17 @@ export function BudgetManager() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Valor Mensal Previsto</label>
-                                    <div className="relative">
-                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                        <input
-                                            type="number"
-                                            placeholder="0,00"
-                                            className="w-full pl-10"
-                                            value={newValue}
-                                            onChange={(e) => setNewValue(e.target.value)}
-                                            required
-                                        />
-                                    </div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Valor Mensal Previsto (R$)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Ex: 1500.00"
+                                        className="w-full"
+                                        min="0"
+                                        step="0.01"
+                                        value={newValue}
+                                        onChange={(e) => setNewValue(e.target.value)}
+                                        required
+                                    />
                                 </div>
                                 <button type="submit" className="w-full btn btn-primary flex items-center justify-center gap-2">
                                     <Plus className="h-4 w-4" />

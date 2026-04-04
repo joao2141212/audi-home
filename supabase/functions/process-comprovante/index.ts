@@ -20,7 +20,7 @@ serve(async (req) => {
         )
 
         const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')!
-        const MODEL = 'gemini-2.0-flash-lite'
+        const MODEL = 'gemini-3.1-flash-lite-preview'
 
         // ── STEP 1: OCR via Gemini Flash Lite ──────────────────────────────
         const prompt = `Você é um auditor fiscal brasileiro especializado em Notas Fiscais e recibos.
