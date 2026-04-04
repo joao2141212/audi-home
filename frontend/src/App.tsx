@@ -116,13 +116,12 @@ export default function App() {
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
                 )}>
                     {/* Brand */}
-                    <div className="h-20 flex items-center px-8 border-b border-slate-100">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                                <Zap className="h-5 w-5 text-white" />
-                            </div>
-                            <span className="text-xl font-black text-slate-900 tracking-tight">AudiCondo</span>
-                        </div>
+                    <div className="h-20 flex items-center px-6 border-b border-slate-100">
+                        <img
+                            src="/logo-audicondo.png"
+                            alt="AudiCondo"
+                            className="h-12 w-auto"
+                        />
                     </div>
 
                     {/* Condo Identity Banner */}
@@ -210,10 +209,7 @@ export default function App() {
                     {/* Mobile Header (Only visible on small screens) */}
                     <div className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-30">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center">
-                                <Zap className="h-4 w-4 text-white" />
-                            </div>
-                            <span className="font-bold text-slate-900">AudiCondo</span>
+                            <img src="/logo-audicondo.png" alt="AudiCondo" className="h-8 w-auto" />
                         </div>
                         <button 
                             onClick={() => setIsSidebarOpen(true)}

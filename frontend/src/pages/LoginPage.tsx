@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { Zap, Loader2, AlertCircle, Building2, ShieldCheck, TrendingUp } from 'lucide-react'
+import { Loader2, AlertCircle, Building2, ShieldCheck, TrendingUp } from 'lucide-react'
 
 export function LoginPage() {
     const { login } = useAuth()
@@ -46,10 +46,11 @@ export function LoginPage() {
 
                     <div className="relative z-10">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                                <Zap className="h-6 w-6 text-white" />
-                            </div>
-                            <span className="text-2xl font-black tracking-tight">AudiCondo</span>
+                            <img
+                                src="/logo-audicondo.png"
+                                alt="AudiCondo"
+                                className="h-14 w-auto drop-shadow-[0_4px_16px_rgba(255,255,255,0.15)]"
+                            />
                         </div>
                     </div>
 
@@ -94,11 +95,11 @@ export function LoginPage() {
                         
                         {/* Mobile Header */}
                         <div className="lg:hidden flex flex-col items-center text-center mb-10">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-xl shadow-blue-600/30 mb-4">
-                                <Zap className="h-8 w-8 text-white" />
-                            </div>
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">AudiCondo</h2>
-                            <p className="text-slate-500 mt-2">Auditoria financeira inteligente</p>
+                            <img
+                                src="/logo-audicondo.png"
+                                alt="AudiCondo"
+                                className="h-20 w-auto mb-2"
+                            />
                         </div>
 
                         <div className="text-center lg:text-left mb-8">
