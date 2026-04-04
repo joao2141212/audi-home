@@ -11,7 +11,9 @@ import { RevenueAudit } from './features/revenue/RevenueAudit'
 import { ComplianceReport } from './features/reports/ComplianceReport'
 import { ReserveFund } from './features/reserve/ReserveFund'
 import { ApprovalQueue } from './features/approval/ApprovalQueue'
-import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2, Menu, Building2, Shield, ClipboardCheck } from 'lucide-react'
+import { ComprovantesHistory } from './features/comprovantes/ComprovantesHistory'
+import { TenantManager } from './features/tenant/TenantManager'
+import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2, Menu, Building2, Shield, ClipboardCheck, History, Users } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import { LoginPage } from './pages/LoginPage'
@@ -21,7 +23,7 @@ import { getLogs } from './contexts/AuthContext'
 
 const queryClient = new QueryClient()
 
-type Tab = 'dashboard' | 'budget' | 'statements' | 'receipts' | 'revenue' | 'expenses' | 'compliance' | 'reserve' | 'reconciliation' | 'approval'
+type Tab = 'dashboard' | 'budget' | 'statements' | 'receipts' | 'revenue' | 'expenses' | 'compliance' | 'reserve' | 'reconciliation' | 'approval' | 'history' | 'tenants'
 
 export default function App() {
     const { user, logout, isAuthenticated, loading, authError } = useAuth()
@@ -93,7 +95,9 @@ export default function App() {
         { id: 'budget' as Tab, label: 'Orçamento', icon: BarChart3 },
         { id: 'statements' as Tab, label: 'Extratos', icon: Landmark },
         { id: 'receipts' as Tab, label: 'Upload Comprovantes', icon: Upload },
+        { id: 'history' as Tab, label: 'Histórico Comprovantes', icon: History },
         { id: 'approval' as Tab, label: 'Fila de Revisão', icon: ClipboardCheck },
+        { id: 'tenants' as Tab, label: 'Moradores', icon: Users },
         { id: 'revenue' as Tab, label: 'Receitas', icon: Zap },
         { id: 'expenses' as Tab, label: 'Despesas', icon: TrendingDown },
         { id: 'compliance' as Tab, label: 'Compliance', icon: ShieldCheck },
@@ -287,6 +291,12 @@ export default function App() {
                             </div>
                             <div className={activeTab === 'approval' ? 'block animate-in fade-in duration-300' : 'hidden'}>
                                 <ApprovalQueue />
+                            </div>
+                            <div className={activeTab === 'history' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                <ComprovantesHistory />
+                            </div>
+                            <div className={activeTab === 'tenants' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                <TenantManager />
                             </div>
                         </div>
                     </div>
