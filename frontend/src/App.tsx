@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Dashboard } from './features/dashboard/Dashboard'
 import { StatementUpload } from './features/statements/StatementUpload'
@@ -10,25 +10,75 @@ import { BudgetManager } from './features/budget/BudgetManager'
 import { RevenueAudit } from './features/revenue/RevenueAudit'
 import { ComplianceReport } from './features/reports/ComplianceReport'
 import { ReserveFund } from './features/reserve/ReserveFund'
-import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2, Menu } from 'lucide-react'
+import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2, Menu, Building2, Shield } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import { LoginPage } from './pages/LoginPage'
 import { MasterDashboard } from './features/dashboard/MasterDashboard'
+import { supabase } from './lib/supabase'
+import { getLogs } from './contexts/AuthContext'
 
 const queryClient = new QueryClient()
 
 type Tab = 'dashboard' | 'budget' | 'statements' | 'receipts' | 'revenue' | 'expenses' | 'compliance' | 'reserve' | 'reconciliation'
 
 export default function App() {
-    const { user, logout, isAuthenticated, loading } = useAuth()
+    const { user, logout, isAuthenticated, loading, authError } = useAuth()
     const [activeTab, setActiveTab] = useState<Tab>('dashboard')
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+    const [condominioNome, setCondominioNome] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (user?.condominio_id) {
+            supabase
+                .from('condominios')
+                .select('nome')
+                .eq('id', user.condominio_id)
+                .single()
+                .then(({ data }) => setCondominioNome(data?.nome || null))
+        }
+    }, [user?.condominio_id])
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
                 <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
+                <p className="text-sm text-slate-400 font-medium">Verificando autenticação...</p>
+            </div>
+        )
+    }
+
+    if (authError) {
+        const logs = getLogs().slice(0, 8)
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-8">
+                <div className="max-w-xl w-full bg-white rounded-2xl border border-rose-200 shadow-lg p-8 space-y-5">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-rose-100 rounded-xl">
+                            <Shield className="h-6 w-6 text-rose-600" />
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-slate-900">Erro de Autenticação</h2>
+                            <p className="text-sm text-rose-600">{authError}</p>
+                        </div>
+                    </div>
+                    <div className="bg-slate-900 rounded-xl p-4 text-xs font-mono space-y-1 max-h-48 overflow-y-auto">
+                        <p className="text-slate-400 text-[10px] uppercase font-bold mb-2">Debug Log (últimos eventos)</p>
+                        {logs.map((l, i) => (
+                            <div key={i} className={`flex gap-2 ${l.level === 'error' ? 'text-rose-400' : l.level === 'warn' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                <span className="text-slate-500 shrink-0">{new Date(l.ts).toLocaleTimeString('pt-BR')}</span>
+                                <span>{l.msg}</span>
+                                {l.data && <span className="text-slate-500 truncate">{JSON.stringify(l.data)}</span>}
+                            </div>
+                        ))}
+                    </div>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+                    >
+                        Recarregar página
+                    </button>
+                </div>
             </div>
         )
     }
@@ -74,6 +124,27 @@ export default function App() {
                             <span className="text-xl font-black text-slate-900 tracking-tight">AudiCondo</span>
                         </div>
                     </div>
+
+                    {/* Condo Identity Banner */}
+                    {user?.role === 'master' ? (
+                        <div className="mx-4 mb-2 mt-2 p-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Shield className="h-4 w-4 text-indigo-200" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Acesso Master</span>
+                            </div>
+                            <p className="text-sm font-bold">Visão Global</p>
+                            <p className="text-[11px] text-indigo-200 mt-0.5">Todos os condomínios</p>
+                        </div>
+                    ) : condominioNome ? (
+                        <div className="mx-4 mb-2 mt-2 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Seu Condomínio</span>
+                            </div>
+                            <p className="text-sm font-bold text-slate-900 leading-snug">{condominioNome}</p>
+                            <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase">Síndico • Ativo</span>
+                        </div>
+                    ) : null}
 
                     {/* Nav Links */}
                     <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
