@@ -1,14 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
-    Upload,
-    FileText,
-    CheckCircle,
-    AlertCircle,
-    Clock,
-    Loader2,
-    ShieldAlert,
-    ShieldCheck,
-    AlertTriangle
+    Upload, FileText, CheckCircle2, AlertCircle,
+    Clock, Loader2, ShieldAlert, ShieldCheck, AlertTriangle
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { supabase } from '../../lib/supabase'
@@ -36,10 +29,26 @@ export function ReceiptUpload() {
     const [dragActive, setDragActive] = useState(false)
     const [receipts, setReceipts] = useState<Receipt[]>([])
     const [lastResult, setLastResult] = useState<any>(null)
+    const [moradores, setMoradores] = useState<{ id: string; nome: string; unidade: string }[]>([])
+    const [moradorId, setMoradorId] = useState<string>('')
 
     useEffect(() => {
-        if (user?.condominio_id) loadReceipts()
+        if (user?.condominio_id) {
+            loadReceipts()
+            loadMoradores()
+        }
     }, [user])
+
+    const loadMoradores = async () => {
+        if (!user?.condominio_id) return
+        const { data } = await supabase
+            .from('moradores')
+            .select('id, nome, unidade')
+            .eq('condominio_id', user.condominio_id)
+            .eq('ativo', true)
+            .order('unidade')
+        setMoradores((data || []) as any[])
+    }
 
     const loadReceipts = async () => {
         if (!user?.condominio_id) return
@@ -79,19 +88,20 @@ export function ReceiptUpload() {
                 .from('comprovantes')
                 .insert({
                     condominio_id: user.condominio_id,
+                    morador_id: moradorId || null,
                     arquivo_nome: file.name,
                     arquivo_url: urlData.publicUrl,
-                    arquivo_hash: storagePath, // use path as unique identifier
+                    arquivo_hash: storagePath,
                     tipo_arquivo: ext as any,
                     tamanho_bytes: file.size,
                     status: 'processando',
                     status_auditoria: 'pendente',
-                    data_upload: new Date().toISOString()
                 })
                 .select('id')
                 .single()
 
             if (compError) throw new Error(`Insert: ${compError.message}`)
+
 
             // STEP 3: Convert file to base64 for OCR
             setMessage('Extraindo dados com IA (Gemini Flash Lite)...')
@@ -166,6 +176,27 @@ export function ReceiptUpload() {
                     O documento é processado com <strong>Gemini Flash Lite</strong> no servidor — sua chave nunca é exposta. 
                     CNPJ validado na RFB com score de fraude automático.
                 </p>
+
+                {/* Morador selector (para comprovantes Pix de inquilinos) */}
+                {moradores.length > 0 && (
+                    <div className="mb-5">
+                        <label className="block text-xs font-bold text-slate-600 mb-1">
+                            Morador / Inquilino <span className="text-slate-400 font-normal">(opcional — para comprovantes Pix)</span>
+                        </label>
+                        <select
+                            value={moradorId}
+                            onChange={e => setMoradorId(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        >
+                            <option value="">— Selecione o morador (se aplicável) —</option>
+                            {moradores.map(m => (
+                                <option key={m.id} value={m.id}>
+                                    Apto {m.unidade} — {m.nome}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 <div
                     onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
