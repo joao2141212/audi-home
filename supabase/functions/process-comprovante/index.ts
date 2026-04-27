@@ -7,6 +7,35 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+async function getAuthenticatedContext(req: Request) {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) throw new Error('AUTH_REQUIRED')
+
+    const authClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } }
+    )
+
+    const { data: { user }, error: userError } = await authClient.auth.getUser()
+    if (userError || !user) throw new Error('AUTH_REQUIRED')
+
+    const adminClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
+    const { data: perfil, error: perfilError } = await adminClient
+        .from('perfis')
+        .select('id, role, condominio_id')
+        .eq('id', user.id)
+        .single()
+
+    if (perfilError || !perfil) throw new Error('PROFILE_NOT_FOUND')
+
+    return { perfil, adminClient }
+}
+
 // ── ISPB map (principais bancos brasileiros) ────────────────────────────────
 const ISPB_MAP: Record<string, string> = {
     '60746948': 'Bradesco',
@@ -83,12 +112,23 @@ serve(async (req) => {
     try {
         const { comprovante_id, file_base64, mime_type, filename } = await req.json()
 
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        )
+        const { perfil, adminClient } = await getAuthenticatedContext(req)
 
-        const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')!
+        const { data: comprovante, error: comprovanteError } = await adminClient
+            .from('comprovantes')
+            .select('id, condominio_id')
+            .eq('id', comprovante_id)
+            .single()
+
+        if (comprovanteError || !comprovante) throw new Error('RECEIPT_NOT_FOUND')
+        if (perfil.role !== 'master' && perfil.condominio_id !== comprovante.condominio_id) {
+            throw new Error('FORBIDDEN_CONDO')
+        }
+
+        const supabase = adminClient
+
+        const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY')
+        if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada')
         const MODEL = 'gemini-3.1-flash-lite-preview'
 
         // ── STEP 1: OCR — Multi-document via Gemini Flash Lite ──────────────
@@ -419,8 +459,13 @@ Retorne neste formato:
         }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
     } catch (err: any) {
+        const status =
+            err?.message === 'AUTH_REQUIRED' ? 401 :
+            err?.message === 'PROFILE_NOT_FOUND' || err?.message === 'FORBIDDEN_CONDO' ? 403 :
+            err?.message === 'RECEIPT_NOT_FOUND' ? 404 :
+            500
         return new Response(JSON.stringify({ error: err.message }), {
-            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
     }
 })

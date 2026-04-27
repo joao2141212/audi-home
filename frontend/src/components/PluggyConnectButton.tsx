@@ -10,7 +10,7 @@ interface PluggyConnectButtonProps {
 }
 
 export function PluggyConnectButton({
-    condominioId,
+    condominioId: _condominioId,
     onSuccess,
     className
 }: PluggyConnectButtonProps) {

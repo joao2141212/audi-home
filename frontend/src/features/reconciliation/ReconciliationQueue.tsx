@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
-    CheckCircle,
-    XCircle,
     GitMerge,
     ArrowRight,
-    Calendar,
     Banknote,
     RefreshCw,
     Zap,
@@ -40,7 +37,6 @@ export function ReconciliationQueue() {
     const [matches, setMatches] = useState<TransactionMatch[]>([])
     const [loading, setLoading] = useState(true)
     const [matchingResults, setMatchingResults] = useState(false)
-    const [totalSelected, setTotalSelected] = useState(0)
 
     const fetchQueue = async () => {
         if (!user?.condominio_id) return
@@ -63,8 +59,6 @@ export function ReconciliationQueue() {
         setSelectedItems(prev => {
             const next = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
             const selectedData = queue.filter(q => next.includes(q.id))
-            const total = selectedData.reduce((acc, curr) => acc + curr.valor, 0)
-            setTotalSelected(total)
 
             if (next.length === 1) {
                 findMatchesForSelection(selectedData[0].valor)
@@ -95,7 +89,6 @@ export function ReconciliationQueue() {
             setQueue(prev => prev.filter(q => !selectedItems.includes(q.id)))
             setSelectedItems([])
             setMatches([])
-            setTotalSelected(0)
         } catch (err) {
             alert('Erro ao aprovar match')
         }

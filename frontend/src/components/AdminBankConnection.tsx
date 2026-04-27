@@ -4,7 +4,7 @@ interface AdminBankConnectionProps {
     condominioId: string
 }
 
-export function AdminBankConnection({ condominioId }: AdminBankConnectionProps) {
+export function AdminBankConnection({ condominioId: _condominioId }: AdminBankConnectionProps) {
     return (
         <div className="bg-gray-50 rounded-[2rem] border border-gray-200 p-8 relative overflow-hidden group">
             <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-center p-6">

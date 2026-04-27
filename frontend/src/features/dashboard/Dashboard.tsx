@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
-import { RefreshCw, TrendingUp, TrendingDown, Wallet, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
+import { RefreshCw, TrendingUp, TrendingDown, Wallet, AlertTriangle, CheckCircle } from 'lucide-react'
 import { SkeletonDashboard } from '../../components/ui/Skeleton'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'

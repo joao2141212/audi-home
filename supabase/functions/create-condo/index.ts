@@ -93,8 +93,7 @@ serve(async (req) => {
                 nome: nome_sindico || email_sindico,
                 role: 'sindico',
                 condominio_id: novoCondo.id,
-                administradora_id: masterPerfil?.administradora_id || null,
-                ativo: true
+                administradora_id: masterPerfil?.administradora_id || null
             })
 
         if (perfilInsErr) {

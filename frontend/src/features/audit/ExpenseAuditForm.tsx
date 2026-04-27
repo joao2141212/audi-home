@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { api } from '../../lib/api'
 import {
     AlertTriangle,
     Loader2,
@@ -61,7 +60,6 @@ const CNAE_MAP: Record<string, string[]> = {
 
 export function ExpenseAuditForm({ transaction, onClose }: ExpenseAuditFormProps) {
     const [cnpj, setCnpj] = useState('')
-    const [servico, setServico] = useState('')
     const [serviceType, setServiceType] = useState('')
     const [loading, setLoading] = useState(false)
     const [result, setResult] = useState<AuditResult | null>(null)

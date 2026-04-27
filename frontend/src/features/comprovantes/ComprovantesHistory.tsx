@@ -66,6 +66,7 @@ export function ComprovantesHistory() {
     const [dateFrom, setDateFrom] = useState('')
     const [dateTo, setDateTo] = useState('')
     const [sortBy, setSortBy] = useState<'created_at' | 'fraud_score' | 'valor'>('created_at')
+    const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
     const fmt = (v: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -102,6 +103,32 @@ export function ComprovantesHistory() {
     }, [user, filterStatus, filterTipo, dateFrom, dateTo, sortBy])
 
     useEffect(() => { load() }, [load])
+
+    const handleDownload = async (item: ComprovItem, event: React.MouseEvent) => {
+        event.stopPropagation()
+
+        if (!item.arquivo_url) return
+
+        if (item.arquivo_url.startsWith('http://') || item.arquivo_url.startsWith('https://')) {
+            window.open(item.arquivo_url, '_blank', 'noopener,noreferrer')
+            return
+        }
+
+        try {
+            setDownloadingId(item.id)
+            const { data, error } = await supabase.storage
+                .from('comprovantes')
+                .createSignedUrl(item.arquivo_url, 60)
+
+            if (error) throw error
+
+            window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+        } catch (err) {
+            console.error('Erro ao gerar link assinado do comprovante:', err)
+        } finally {
+            setDownloadingId(null)
+        }
+    }
 
     // Client-side search + morador filter
     const filtered = items.filter(item => {
@@ -322,11 +349,19 @@ export function ComprovantesHistory() {
                                             <td className="px-5 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
                                                     {item.arquivo_url && (
-                                                        <a href={item.arquivo_url} target="_blank" rel="noopener noreferrer"
-                                                            onClick={e => e.stopPropagation()}
-                                                            className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors" title="Ver/baixar documento">
-                                                            <Download className="h-3.5 w-3.5" />
-                                                        </a>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => handleDownload(item, e)}
+                                                            className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                                                            title="Ver/baixar documento"
+                                                            disabled={downloadingId === item.id}
+                                                        >
+                                                            {downloadingId === item.id ? (
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Download className="h-3.5 w-3.5" />
+                                                            )}
+                                                        </button>
                                                     )}
                                                     {isExp
                                                         ? <ChevronUp className="h-4 w-4 text-slate-400" />

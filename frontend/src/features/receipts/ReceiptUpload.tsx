@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-    Upload, FileText, CheckCircle2, AlertCircle,
+    Upload, FileText, AlertCircle,
     Clock, Loader2, ShieldAlert, ShieldCheck, AlertTriangle
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -31,6 +31,13 @@ export function ReceiptUpload() {
     const [lastResult, setLastResult] = useState<any>(null)
     const [moradores, setMoradores] = useState<{ id: string; nome: string; unidade: string }[]>([])
     const [moradorId, setMoradorId] = useState<string>('')
+
+    const calculateFileHash = async (buffer: ArrayBuffer) => {
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
+        return Array.from(new Uint8Array(hashBuffer))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('')
+    }
 
     useEffect(() => {
         if (user?.condominio_id) {
@@ -73,14 +80,15 @@ export function ReceiptUpload() {
             setMessage('Fazendo upload seguro para o servidor...')
             const ext = file.name.split('.').pop()
             const storagePath = `${user.condominio_id}/${Date.now()}_${file.name}`
+            const arrayBuffer = await file.arrayBuffer()
+            const uint8 = new Uint8Array(arrayBuffer)
+            const fileHash = await calculateFileHash(arrayBuffer)
 
             const { error: storageError } = await supabase.storage
                 .from('comprovantes')
                 .upload(storagePath, file, { contentType: file.type, upsert: false })
 
             if (storageError) throw new Error(`Storage: ${storageError.message}`)
-
-            const { data: urlData } = supabase.storage.from('comprovantes').getPublicUrl(storagePath)
 
             // STEP 2: Create comprovante record (status pending)
             setMessage('Registrando documento...')
@@ -90,8 +98,8 @@ export function ReceiptUpload() {
                     condominio_id: user.condominio_id,
                     morador_id: moradorId || null,
                     arquivo_nome: file.name,
-                    arquivo_url: urlData.publicUrl,
-                    arquivo_hash: storagePath,
+                    arquivo_url: storagePath,
+                    arquivo_hash: fileHash,
                     tipo_arquivo: ext as any,
                     tamanho_bytes: file.size,
                     status: 'processando',
@@ -105,8 +113,6 @@ export function ReceiptUpload() {
 
             // STEP 3: Convert file to base64 for OCR
             setMessage('Extraindo dados com IA (Gemini Flash Lite)...')
-            const arrayBuffer = await file.arrayBuffer()
-            const uint8 = new Uint8Array(arrayBuffer)
             let binary = ''
             uint8.forEach(b => binary += String.fromCharCode(b))
             const base64 = btoa(binary)
@@ -147,7 +153,7 @@ export function ReceiptUpload() {
         }
     }
 
-    const getStatusConfig = (status: string, score?: number | null) => {
+    const getStatusConfig = (status: string) => {
         if (status === 'auditado') return {
             label: 'Auditado', icon: <ShieldCheck className="h-3.5 w-3.5" />,
             classes: 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -287,7 +293,7 @@ export function ReceiptUpload() {
                 ) : (
                     <div className="divide-y divide-slate-100">
                         {receipts.map((r) => {
-                            const s = getStatusConfig(r.status_auditoria, r.fraud_score)
+                            const s = getStatusConfig(r.status_auditoria)
                             return (
                                 <div key={r.id} className="py-4 flex items-center gap-4 hover:bg-slate-50/50 rounded-xl px-2 transition-all">
                                     <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">

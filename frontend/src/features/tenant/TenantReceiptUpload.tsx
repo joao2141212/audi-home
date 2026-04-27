@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, FileText, CheckCircle, XCircle, Loader2, ShieldCheck } from 'lucide-react'
+import { Upload, FileText, CheckCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { api } from '../../lib/api'
 
@@ -8,7 +8,7 @@ interface TenantReceiptUploadProps {
     unidadeId?: string
 }
 
-export function TenantReceiptUpload({ condominioId, unidadeId }: TenantReceiptUploadProps) {
+export function TenantReceiptUpload({ condominioId, unidadeId: _unidadeId }: TenantReceiptUploadProps) {
     const [file, setFile] = useState<File | null>(null)
     const [uploading, setUploading] = useState(false)
     const [validationResult, setValidationResult] = useState<any>(null)

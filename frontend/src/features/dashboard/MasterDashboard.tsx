@@ -68,14 +68,6 @@ export function MasterDashboard() {
     const [onboarding, setOnboarding] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
     const [onboardMsg, setOnboardMsg] = useState('')
 
-    if (user?.role !== 'master') {
-        return (
-            <div className="p-12 text-center text-rose-600 font-bold">
-                ⛔ Acesso restrito — perfil Master obrigatório.
-            </div>
-        )
-    }
-
     const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
     const fetchData = useCallback(async () => {
@@ -97,9 +89,21 @@ export function MasterDashboard() {
     }, [])
 
     useEffect(() => {
+        if (user?.role !== 'master') {
+            setLoading(false)
+            return
+        }
         fetchData()
         setLogs(getLogs())
-    }, [fetchData])
+    }, [fetchData, user?.role])
+
+    if (user?.role !== 'master') {
+        return (
+            <div className="p-12 text-center text-rose-600 font-bold">
+                ⛔ Acesso restrito — perfil Master obrigatório.
+            </div>
+        )
+    }
 
     const totals = records.reduce((acc, curr) => ({
         receitas:    acc.receitas + (Number(curr.total_receitas) || 0),

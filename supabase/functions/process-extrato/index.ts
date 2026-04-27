@@ -18,6 +18,41 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function getAuthenticatedProfile(req: Request) {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+        throw new Error('AUTH_REQUIRED');
+    }
+
+    const authClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: userError } = await authClient.auth.getUser();
+    if (userError || !user) {
+        throw new Error('AUTH_REQUIRED');
+    }
+
+    const adminClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    const { data: perfil, error: perfilError } = await adminClient
+        .from('perfis')
+        .select('id, role, condominio_id')
+        .eq('id', user.id)
+        .single();
+
+    if (perfilError || !perfil) {
+        throw new Error('PROFILE_NOT_FOUND');
+    }
+
+    return { perfil, adminClient };
+}
+
 // ============== GEMINI AI - EXTRAIR TRANSAÇÕES ==============
 async function extractTransactionsWithGemini(base64Content: string, mimeType: string): Promise<{
     transacoes: Array<{
@@ -30,9 +65,9 @@ async function extractTransactionsWithGemini(base64Content: string, mimeType: st
     periodo_fim: string | null;
     tokens_used: number;
 }> {
-    const apiKey = Deno.env.get('GOOGLE_API_KEY');
+    const apiKey = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GEMINI_API_KEY');
     if (!apiKey) {
-        throw new Error('GOOGLE_API_KEY não configurada');
+        throw new Error('GOOGLE_API_KEY ou GEMINI_API_KEY não configurada');
     }
 
     const prompt = `Você é um parser de extratos bancários brasileiros.
@@ -111,11 +146,18 @@ serve(async (req: Request) => {
     try {
         const formData = await req.formData();
         const file = formData.get('file') as File;
-        const condominioId = formData.get('condominio_id') as string || 'default';
+        const condominioId = formData.get('condominio_id') as string | null;
 
         if (!file) {
             return new Response(
                 JSON.stringify({ error: 'Arquivo não enviado' }),
+                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
+        if (!condominioId) {
+            return new Response(
+                JSON.stringify({ error: 'condominio_id é obrigatório' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
@@ -127,10 +169,13 @@ serve(async (req: Request) => {
 
         console.log(`📤 Processando extrato: ${file.name} (${bytes.length} bytes)`);
 
-        // Inicializar Supabase
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { perfil, adminClient } = await getAuthenticatedProfile(req);
+        if (perfil.role !== 'master' && perfil.condominio_id !== condominioId) {
+            return new Response(
+                JSON.stringify({ error: 'Sem acesso a este condomínio' }),
+                { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
 
         let resultado: any;
         let metodo = '';
@@ -193,7 +238,7 @@ serve(async (req: Request) => {
         const extratoId = crypto.randomUUID();
         const timestamp = new Date().toISOString();
 
-        const { error: extratoError } = await supabase
+        const { error: extratoError } = await adminClient
             .from('extratos_bancarios')
             .insert({
                 id: extratoId,
@@ -204,6 +249,10 @@ serve(async (req: Request) => {
                 periodo_fim: resultado.periodo_fim || null,
                 fonte: 'manual'
             });
+
+        if (extratoError) {
+            throw extratoError;
+        }
 
         // Inserir transações
         const transacoesParaInserir = resultado.transacoes.map((tx: any, i: number) => ({
@@ -219,7 +268,7 @@ serve(async (req: Request) => {
 
         let transacoesInseridas = 0;
         if (transacoesParaInserir.length > 0) {
-            const { error: txError } = await supabase
+            const { error: txError } = await adminClient
                 .from('transacoes_bancarias')
                 .insert(transacoesParaInserir);
 
@@ -281,12 +330,17 @@ serve(async (req: Request) => {
 
     } catch (error: any) {
         console.error('❌ Erro:', error);
+        const message = error?.message || 'Erro interno';
+        const status =
+            message === 'AUTH_REQUIRED' ? 401 :
+            message === 'PROFILE_NOT_FOUND' ? 403 :
+            500;
         return new Response(
             JSON.stringify({
-                error: error?.message || 'Erro interno',
+                error: message,
                 stack: error?.stack
             }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
 });

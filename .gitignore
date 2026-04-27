@@ -10,6 +10,7 @@ backend/__pycache__/
 
 # Environment
 .env
+frontend/.env
 backend/.env
 frontend/.env.local
 SUPABASE_CREDENCIAIS.md
