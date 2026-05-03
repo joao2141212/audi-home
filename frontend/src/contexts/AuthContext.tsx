@@ -41,6 +41,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+function getFriendlyAuthError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+
+    if (message === 'Failed to fetch' || message.includes('fetch failed') || message.includes('NetworkError')) {
+        return 'Nao foi possivel conectar ao Supabase agora. Verifique internet, DNS ou se o projeto remoto esta ativo.'
+    }
+
+    return message
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<UserProfile | null>(null)
@@ -152,10 +162,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const login = async (email: string, pass: string) => {
         appendLog('info', 'Login tentativa', { email })
         setAuthError(null)
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass })
-        if (error) {
-            appendLog('error', 'Login falhou', { message: error.message })
-            throw new Error(error.message)
+        let data
+        try {
+            const result = await supabase.auth.signInWithPassword({ email, password: pass })
+            data = result.data
+            if (result.error) {
+                appendLog('error', 'Login falhou', { message: result.error.message })
+                throw new Error(getFriendlyAuthError(result.error))
+            }
+        } catch (err) {
+            const friendly = getFriendlyAuthError(err)
+            appendLog('error', 'Login falhou', { message: friendly })
+            throw new Error(friendly)
         }
         if (data.user) {
             appendLog('info', 'Login OK', { userId: data.user.id })

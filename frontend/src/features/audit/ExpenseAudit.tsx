@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 
 interface Transaction {
     id: string
+    condominioId: string
     amount: number
     date: string
     description: string

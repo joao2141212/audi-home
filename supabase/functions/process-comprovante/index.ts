@@ -215,7 +215,8 @@ Retorne neste formato:
             await supabase.from('comprovantes').update({
                 ocr_processado: true, ocr_erro: ocr.erro,
                 status_auditoria: 'rejeitado', fraud_score: 100,
-                fraud_flags: ['DOCUMENTO_INVALIDO'], tipo_documento: 'DESCONHECIDO'
+                fraud_flags: ['DOCUMENTO_INVALIDO'], tipo_documento: 'DESCONHECIDO',
+                status: 'rejeitado'
             }).eq('id', comprovante_id)
             return new Response(JSON.stringify({ success: false, erro: ocr.erro }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
         }
@@ -440,15 +441,22 @@ Retorne neste formato:
 
         // Duplicate by filename
         const { data: dupes } = await supabase.from('comprovantes').select('id')
+            .eq('condominio_id', comprovante.condominio_id)
             .neq('id', comprovante_id).eq('arquivo_nome', filename).limit(1)
         if (dupes && dupes.length > 0) { fraudScore += 50; fraudFlags.push('ARQUIVO_DUPLICADO') }
 
         const finalScore = Math.min(fraudScore, 100)
         const finalStatus = finalScore >= 60 ? 'suspeito' : finalScore >= 30 ? 'alerta' : 'auditado'
+        const operationalStatus = finalStatus === 'auditado'
+            ? 'aprovado'
+            : finalStatus === 'alerta'
+                ? 'pendente'
+                : finalStatus
 
         await supabase.from('comprovantes').update({
             ...updatePayload,
-            fraud_score: finalScore, fraud_flags: fraudFlags, status_auditoria: finalStatus
+            fraud_score: finalScore, fraud_flags: fraudFlags,
+            status_auditoria: finalStatus, status: operationalStatus
         }).eq('id', comprovante_id)
 
         return new Response(JSON.stringify({

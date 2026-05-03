@@ -17,11 +17,12 @@ import { api } from '../../lib/api'
 
 interface Transaction {
     id: string
+    condominioId: string
     amount: number
     date: string
     description: string
     category?: string
-    auditStatus?: 'pendente' | 'aprovado' | 'rejeitado'
+    auditStatus?: 'pendente' | 'auditado' | 'suspeito' | 'alerta' | 'rejeitado'
 }
 
 interface ExpenseListProps {
@@ -32,7 +33,7 @@ interface ExpenseListProps {
 export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
-    const [filter, setFilter] = useState<'todos' | 'pendente' | 'aprovado' | 'rejeitado'>('todos')
+    const [filter, setFilter] = useState<'todos' | 'pendente' | 'auditado' | 'suspeito' | 'alerta' | 'rejeitado'>('todos')
 
     const fetchExpenses = async () => {
         setLoading(true)
@@ -40,6 +41,7 @@ export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
             const data = await api.getExpenses(condominioId)
             const mapped: Transaction[] = (data || []).map((ex: any) => ({
                 id: ex.id.toString(),
+                condominioId: ex.condominio_id,
                 amount: ex.valor,
                 date: ex.data_emissao,
                 description: ex.descricao || 'Despesa',
@@ -67,16 +69,22 @@ export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
 
     const statusCounts = {
         pendente: transactions.filter(t => t.auditStatus === 'pendente').length,
-        aprovado: transactions.filter(t => t.auditStatus === 'aprovado').length,
+        auditado: transactions.filter(t => t.auditStatus === 'auditado').length,
         rejeitado: transactions.filter(t => t.auditStatus === 'rejeitado').length,
     }
 
     const getStatusConfig = (status?: string) => {
         switch (status) {
-            case 'aprovado':
+            case 'auditado':
                 return {
                     icon: <CheckCircle className="h-4 w-4" />,
                     classes: 'text-emerald-600 bg-emerald-50'
+                }
+            case 'suspeito':
+            case 'alerta':
+                return {
+                    icon: <AlertTriangle className="h-4 w-4" />,
+                    classes: 'text-amber-600 bg-amber-50'
                 }
             case 'rejeitado':
                 return {
@@ -151,16 +159,16 @@ export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
                 </button>
 
                 <button
-                    onClick={() => setFilter('aprovado')}
+                    onClick={() => setFilter('auditado')}
                     className={cn(
                         "card p-4 text-left transition-all",
-                        filter === 'aprovado' && "ring-2 ring-emerald-500"
+                        filter === 'auditado' && "ring-2 ring-emerald-500"
                     )}
                 >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Aprovados</p>
-                            <p className="text-2xl font-semibold text-emerald-600 mt-1">{statusCounts.aprovado}</p>
+                            <p className="text-2xl font-semibold text-emerald-600 mt-1">{statusCounts.auditado}</p>
                         </div>
                         <div className="p-2 bg-emerald-100 rounded-lg">
                             <CheckCircle className="h-5 w-5 text-emerald-600" />
@@ -191,7 +199,7 @@ export function ExpenseList({ condominioId, onAuditClick }: ExpenseListProps) {
             <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-gray-400" />
                 <div className="flex gap-2">
-                    {(['todos', 'pendente', 'aprovado', 'rejeitado'] as const).map(f => (
+                    {(['todos', 'pendente', 'auditado', 'suspeito', 'alerta', 'rejeitado'] as const).map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}

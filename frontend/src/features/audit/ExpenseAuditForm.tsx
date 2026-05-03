@@ -10,9 +10,12 @@ import {
     ShieldX
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface Transaction {
     id: string
+    condominioId: string
     amount: number
     date: string
     description: string
@@ -59,6 +62,7 @@ const CNAE_MAP: Record<string, string[]> = {
 }
 
 export function ExpenseAuditForm({ transaction, onClose }: ExpenseAuditFormProps) {
+    const { user } = useAuth()
     const [cnpj, setCnpj] = useState('')
     const [serviceType, setServiceType] = useState('')
     const [loading, setLoading] = useState(false)
@@ -133,18 +137,56 @@ export function ExpenseAuditForm({ transaction, onClose }: ExpenseAuditFormProps
     }
 
     const handleSaveAudit = async () => {
-        if (!result) return
+        if (!result || !user) return
         setLoading(true)
         try {
-            console.log('💾 Salvando auditoria para transação:', transaction.id)
-            // TODO: Implementar saveAudit no api.ts quando necessário
-            console.log('Auditoria salva:', {
-                transactionId: transaction.id,
-                status: result.status,
-                relatorio: result.relatorio_compliance,
-                cnpj: cnpj.replace(/\D/g, ''),
-                razao_social: result.fornecedor?.razao_social || 'Desconhecido'
+            const auditStatus = result.status === 'APROVADO'
+                ? 'auditado'
+                : result.status === 'ALERTA'
+                    ? 'alerta'
+                    : 'rejeitado'
+            const fraudScore = result.status === 'APROVADO'
+                ? 0
+                : result.status === 'ALERTA'
+                    ? 45
+                    : 90
+            const fraudFlags = result.status === 'APROVADO'
+                ? []
+                : result.status === 'ALERTA'
+                    ? ['CNAE_INCOMPATIVEL']
+                    : ['CNPJ_IRREGULAR']
+            const cleanCnpj = cnpj.replace(/\D/g, '')
+            const serviceLabel = SERVICE_TYPES.find(t => t.value === serviceType)?.label || serviceType
+
+            const { error: updateError } = await supabase
+                .from('comprovantes')
+                .update({
+                    ocr_cnpj: cleanCnpj,
+                    ocr_razao_social: result.fornecedor?.razao_social || null,
+                    cnpj_status: result.fornecedor?.status_cadastral || null,
+                    natureza_servico: serviceLabel,
+                    status_auditoria: auditStatus,
+                    fraud_score: fraudScore,
+                    fraud_flags: fraudFlags,
+                    motivo_rejeicao: auditStatus === 'rejeitado' ? result.relatorio_compliance : null,
+                    aprovado_por: auditStatus === 'auditado' ? user.id : null,
+                    aprovado_em: auditStatus === 'auditado' ? new Date().toISOString() : null,
+                })
+                .eq('id', transaction.id)
+
+            if (updateError) throw updateError
+
+            const { error: logError } = await supabase.from('audit_acoes').insert({
+                comprovante_id: transaction.id,
+                condominio_id: transaction.condominioId,
+                usuario_id: user.id,
+                usuario_nome: user.nome || user.email,
+                acao: auditStatus === 'auditado' ? 'aprovado' : auditStatus === 'rejeitado' ? 'rejeitado' : 'solicitado_esclarecimento',
+                motivo: result.relatorio_compliance,
+                fraud_score_na_acao: fraudScore
             })
+
+            if (logError) throw logError
             onClose()
         } catch (err) {
             console.error('Erro ao salvar auditoria:', err)
