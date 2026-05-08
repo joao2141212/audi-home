@@ -10,7 +10,8 @@ Arquitetura ativa identificada nesta revisao:
 
 - Frontend: `frontend/` em React + Vite
 - Backend principal: `supabase/` com Auth, Postgres, Storage e Edge Functions
-- Deploy atual previsto: Netlify + Supabase
+- Deploy/build oficial: GitHub como fonte de verdade + build local validado antes do push
+- Netlify: nao usar para build/deploy deste projeto; estava causando problema recorrente de versionamento
 - Codigo legado: `legado/` (nao deve ser usado como base de producao)
 
 ## Resumo executivo
@@ -78,7 +79,7 @@ Acao minima:
 - remover secrets versionados
 - criar `.env.example`
 - rotacionar chaves atuais
-- configurar variaveis no Netlify e no Supabase
+- configurar variaveis no ambiente local/CI usado para validar antes do push e no Supabase
 
 ### P0. Bucket de comprovantes esta publico
 
@@ -247,7 +248,7 @@ Ou seja:
 - remover secrets do repo
 - criar `.env.example`
 - rotacionar chaves
-- configurar envs no Netlify e Supabase
+- configurar envs no ambiente local/CI usado para validar antes do push e no Supabase
 - corrigir `create-condo`
 
 ### Dia 2
@@ -277,9 +278,9 @@ Ou seja:
 
 ### Dia 5
 
-- deploy em ambiente de staging
+- validar a branch principal com build local e smoke test remoto controlado
 - validar com dados reais controlados
-- abrir producao
+- abrir producao somente a partir de commit validado no GitHub
 
 ## CHECKLIST DE GO-LIVE
 

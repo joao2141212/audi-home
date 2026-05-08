@@ -4,7 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('[AudiCondo] VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não configuradas. Configure as variáveis de ambiente no Netlify.')
+    console.warn('[AudiCondo] VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não configuradas. Configure no ambiente local/CI usado antes do push; Netlify não é mais o fluxo de build deste projeto.')
 }
 
 export const supabase = createClient(
