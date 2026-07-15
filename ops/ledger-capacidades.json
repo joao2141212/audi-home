@@ -1,0 +1,1070 @@
+{
+ "geradoEm": "2026-07-08T17:02:03.633Z",
+ "capacidades": [
+  {
+   "tipo": "tabela",
+   "nome": "condominios",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": [
+    "frontend/src/App.tsx",
+    "supabase/functions/create-condo/index.ts",
+    "supabase/functions/create-condo/index.ts",
+    "supabase/functions/create-condo/index.ts",
+    "tests/e2e_test.js",
+    "tests/test_rls_flow.js"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "usuarios",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "autorizacoes",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "persistent_logins",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "blocos",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "moradias",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "pessoas",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "pessoasfisicas",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "pessoasjuridicas",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "contas",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "contasbancarias",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "categorias",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "subcategorias",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "pessoa_moradia",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "cobrancas",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "periodos",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "orcamentos",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "movimentos",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "transferencias",
+   "back": "estudos-oss/condominio-mvc/src/main/resources/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "condominio_contas_bancarias",
+   "back": "legado/database/migrations/004_condominio_contas_bancarias.sql",
+   "front": [
+    "supabase/functions/open-finance/index.ts",
+    "supabase/functions/transactions/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "auditorias_despesas",
+   "back": "legado/database/migrations/005_audit_tables.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "fornecedores_auditados",
+   "back": "legado/database/migrations/005_audit_tables.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "audit_log_immutable",
+   "back": "legado/database/migrations/006_enterprise_features.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "background_jobs",
+   "back": "legado/database/migrations/006_enterprise_features.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "orcamento",
+   "back": "legado/database/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "boletos_emitidos",
+   "back": "legado/database/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "pagamentos",
+   "back": "legado/database/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "fundo_reserva",
+   "back": "legado/database/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "audit_log",
+   "back": "legado/database/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "extratos_bancarios",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": [
+    "frontend/src/lib/api.ts",
+    "supabase/functions/process-extrato/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "transacoes_bancarias",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": [
+    "frontend/src/features/dashboard/Dashboard.tsx",
+    "frontend/src/features/reports/ComplianceReport.tsx",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "supabase/functions/audit/index.ts",
+    "supabase/functions/dashboard/index.ts",
+    "supabase/functions/dashboard/index.ts",
+    "supabase/functions/open-finance/index.ts",
+    "supabase/functions/process-extrato/index.ts",
+    "supabase/functions/reconciliation/index.ts",
+    "supabase/functions/reconciliation/index.ts",
+    "supabase/functions/transactions/index.ts",
+    "supabase/functions/transactions/index.ts",
+    "supabase/functions/transactions/index.ts",
+    "tests/test_rls_flow.js"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "comprovantes",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": [
+    "frontend/scripts/validate_cloud_flows.js",
+    "frontend/scripts/validate_cloud_flows.js",
+    "frontend/scripts/validate_cloud_flows.js",
+    "frontend/src/features/approval/ApprovalQueue.tsx",
+    "frontend/src/features/audit/ExpenseAuditForm.tsx",
+    "frontend/src/features/comprovantes/ComprovantesHistory.tsx",
+    "frontend/src/features/dashboard/Dashboard.tsx",
+    "frontend/src/features/receipts/ReceiptUpload.tsx",
+    "frontend/src/features/receipts/ReceiptUpload.tsx",
+    "frontend/src/features/receipts/ReceiptUpload.tsx",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts",
+    "supabase/functions/dashboard/index.ts",
+    "supabase/functions/dashboard/index.ts",
+    "supabase/functions/process-comprovante/index.ts",
+    "supabase/functions/process-comprovante/index.ts",
+    "supabase/functions/process-comprovante/index.ts",
+    "supabase/functions/process-comprovante/index.ts",
+    "supabase/functions/process-comprovante/index.ts",
+    "supabase/functions/reconciliation/index.ts",
+    "supabase/functions/reconciliation/index.ts",
+    "supabase/functions/reconciliation/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "fila_reconciliacao",
+   "back": "legado/database/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "tabela",
+   "nome": "administradoras",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": [
+    "frontend/scripts/validate_cloud_flows.js"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "perfis",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": [
+    "frontend/scripts/validate_cloud_flows.js",
+    "frontend/src/contexts/AuthContext.tsx",
+    "supabase/functions/create-condo/index.ts",
+    "supabase/functions/create-condo/index.ts",
+    "supabase/functions/create-condo/index.ts",
+    "supabase/functions/process-comprovante/index.ts",
+    "supabase/functions/process-extrato/index.ts",
+    "supabase/functions/sync-winker/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "fornecedores",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": [
+    "supabase/functions/process-comprovante/index.ts",
+    "supabase/functions/process-comprovante/index.ts",
+    "tests/e2e_test.js"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "orcamento_anual",
+   "back": "supabase/migrations/20260403010000_auditcondo_schema_v1_1.sql",
+   "front": [
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "reserva_config",
+   "back": "supabase/migrations/20260403010000_auditcondo_schema_v1_1.sql",
+   "front": [
+    "frontend/src/features/dashboard/Dashboard.tsx",
+    "frontend/src/lib/api.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "reserva_movimentacoes",
+   "back": "supabase/migrations/20260403010000_auditcondo_schema_v1_1.sql",
+   "front": [
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/api.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "audit_acoes",
+   "back": "supabase/migrations/20260403030000_approval_queue.sql",
+   "front": [
+    "frontend/src/features/approval/ApprovalQueue.tsx",
+    "frontend/src/features/audit/ExpenseAuditForm.tsx"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "moradores",
+   "back": "supabase/migrations/20260404050000_moradores.sql",
+   "front": [
+    "frontend/src/features/receipts/ReceiptUpload.tsx",
+    "frontend/src/features/tenant/TenantManager.tsx",
+    "frontend/src/features/tenant/TenantManager.tsx",
+    "frontend/src/features/tenant/TenantManager.tsx"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "winker_connections",
+   "back": "supabase/migrations/20260610010000_winker_integration.sql",
+   "front": [
+    "frontend/src/features/winker/WinkerImport.tsx",
+    "supabase/functions/sync-winker/index.ts",
+    "supabase/functions/sync-winker/index.ts",
+    "supabase/functions/sync-winker/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "winker_divisions",
+   "back": "supabase/migrations/20260610010000_winker_integration.sql",
+   "front": [
+    "supabase/functions/sync-winker/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "winker_units",
+   "back": "supabase/migrations/20260610010000_winker_integration.sql",
+   "front": [
+    "supabase/functions/sync-winker/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "winker_documents",
+   "back": "supabase/migrations/20260610010000_winker_integration.sql",
+   "front": [
+    "frontend/src/features/winker/WinkerImport.tsx",
+    "supabase/functions/sync-winker/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "winker_external_records",
+   "back": "supabase/migrations/20260610010000_winker_integration.sql",
+   "front": [
+    "supabase/functions/sync-winker/index.ts"
+   ]
+  },
+  {
+   "tipo": "tabela",
+   "nome": "winker_sync_runs",
+   "back": "supabase/migrations/20260610010000_winker_integration.sql",
+   "front": [
+    "supabase/functions/sync-winker/index.ts",
+    "supabase/functions/sync-winker/index.ts",
+    "supabase/functions/sync-winker/index.ts"
+   ]
+  },
+  {
+   "tipo": "funcao",
+   "nome": "blnk",
+   "back": "estudos-oss/blnk/sql/1781162328.sql",
+   "front": []
+  },
+  {
+   "tipo": "funcao",
+   "nome": "audit_trigger",
+   "back": "legado/database/schema.sql",
+   "front": []
+  },
+  {
+   "tipo": "funcao",
+   "nome": "find_reconciliation_matches",
+   "back": "supabase/migrations/20260403010000_auditcondo_schema_v1_1.sql",
+   "front": [
+    "frontend/scripts/validate_cloud_flows.js",
+    "frontend/src/lib/api.ts"
+   ]
+  },
+  {
+   "tipo": "funcao",
+   "nome": "audit_monthly_reserve",
+   "back": "legado/functions.sql",
+   "front": []
+  },
+  {
+   "tipo": "funcao",
+   "nome": "handle_new_user",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": []
+  },
+  {
+   "tipo": "funcao",
+   "nome": "get_my_profile",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": []
+  },
+  {
+   "tipo": "funcao",
+   "nome": "user_has_condo_access",
+   "back": "supabase/migrations/20260403000000_auditcondo_schema_v1.sql",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST a",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.engines.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST whatever",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.route.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET a",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET x",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.get-set.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET c",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.get-set.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET h",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.get-set.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET h.i",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.get-set.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET aa",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.get-set.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET bb",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.get-set.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET cc",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.get-set.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET Group",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST x",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.toStream.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST y",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.toStream.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST z",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/app.toStream.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST a.hbs",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/helpers.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST b.hbs",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/helpers.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST c.hbs",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/helpers.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST foo.hbs",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/helpers.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST a/b/c/d.txt",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/renameKey.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST a/b/c/e.txt",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/renameKey.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST a/b/c/post.txt",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/renameKey.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST a/b/c/c.txt",
+   "back": "estudos-oss/dwm-condominios/dwm-condominios/Content/vendors/update/test/renameKey.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /expense",
+   "back": "legado/backend/app/api/endpoints/audit.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /validate-receipt",
+   "back": "legado/backend/app/api/endpoints/pluggy_routes.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /batch-expenses",
+   "back": "legado/backend/app/api/endpoints/audit.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /tasks/{task_id}",
+   "back": "legado/backend/app/api/endpoints/audit.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /suppliers/{cnpj}",
+   "back": "legado/backend/app/api/endpoints/audit.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /upload",
+   "back": "legado/backend/app/api/endpoints/receipts.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /",
+   "back": "legado/backend-node/routes/transactions.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /summary",
+   "back": "legado/backend/app/api/endpoints/dashboard.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /health",
+   "back": "legado/backend-node/server-modular.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /connect",
+   "back": "legado/backend/app/api/endpoints/open_finance.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /sync/{account_id}",
+   "back": "legado/backend/app/api/endpoints/open_finance.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /balance/{account_id}",
+   "back": "legado/backend/app/api/endpoints/open_finance.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /validate",
+   "back": "legado/backend-node/routes/statements.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /token",
+   "back": "legado/backend/app/api/endpoints/pluggy_routes.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /save-connection",
+   "back": "legado/backend/app/api/endpoints/pluggy_routes.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /sync-transactions/{condominio_id}",
+   "back": "legado/backend/app/api/endpoints/pluggy_routes.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /{receipt_id}/process-ocr",
+   "back": "legado/backend/app/api/endpoints/receipts.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /{receipt_id}",
+   "back": "legado/backend/app/api/endpoints/receipts.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /queue",
+   "back": "legado/backend-node/routes/reconciliation.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /matches/{receipt_id}",
+   "back": "legado/backend/app/api/endpoints/reconciliation.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /approve",
+   "back": "legado/backend/app/api/endpoints/reconciliation.py",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /reject",
+   "back": "legado/backend-node/routes/reconciliation.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /save",
+   "back": "legado/backend-node/routes/statements.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /reports/divergences",
+   "back": "legado/backend-node/routes/audit.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /ownership-report",
+   "back": "legado/backend-node/routes/audit.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /export/laudo",
+   "back": "legado/backend-node/routes/audit.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /register",
+   "back": "legado/backend-node/routes/auth.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /login",
+   "back": "legado/backend-node/routes/auth.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /stats",
+   "back": "legado/backend-node/routes/dashboard.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /test-pdf-extraction",
+   "back": "legado/backend-node/routes/experimental-cerebras.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /extract-statement-cerebras",
+   "back": "legado/backend-node/routes/experimental-cerebras.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /status",
+   "back": "legado/backend-node/routes/experimental-cerebras.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /validate-cnpj",
+   "back": "legado/backend-node/routes/receipts.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /matches/:receiptId",
+   "back": "legado/backend-node/routes/reconciliation.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /matches/multi",
+   "back": "legado/backend-node/routes/reconciliation.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /link",
+   "back": "legado/backend-node/routes/reconciliation.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /link-multi",
+   "back": "legado/backend-node/routes/reconciliation.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /config",
+   "back": "legado/backend-node/routes/reserve.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /config/save",
+   "back": "legado/backend-node/routes/reserve.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /movimentacoes",
+   "back": "legado/backend-node/routes/reserve.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /movimentacoes/save",
+   "back": "legado/backend-node/routes/reserve.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /audit/:year/:month",
+   "back": "legado/backend-node/routes/reserve.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /boletos",
+   "back": "legado/backend-node/routes/revenue.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /boletos/save",
+   "back": "legado/backend-node/routes/revenue.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /unpaid-boletos",
+   "back": "legado/backend-node/routes/revenue.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /anticipation",
+   "back": "legado/backend-node/routes/revenue.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /anticipation/save",
+   "back": "legado/backend-node/routes/revenue.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /expenses",
+   "back": "legado/backend-node/routes/transactions.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/receipts/validate",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/receipts/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/receipts",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/auth/register",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/auth/login",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/statements/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/transactions",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/expenses",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/statements",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/dashboard/stats",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reconciliation/queue",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reconciliation/matches/:id",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/reconciliation/approve",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/reconciliation/link-multi",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/reconciliation/reject",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/audit/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/budget",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/budget/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/revenue/boletos",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/anticipation/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/anticipation",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reports/unpaid-boletos",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reports/discrepancies",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/revenue/boletos/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reserve/config",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/reserve/config/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reserve/movimentacoes",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/reserve/movimentacoes/save",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/audit/reports/divergences",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reconciliation/matches/:receiptId",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/reconciliation/link",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/audit/ownership-report",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/audit/export/laudo",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "POST /api/reconciliation/matches/multi",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  },
+  {
+   "tipo": "rota",
+   "nome": "GET /api/reserva/audit/:year/:month",
+   "back": "legado/backend-node/server.js",
+   "front": []
+  }
+ ]
+}

@@ -20,6 +20,7 @@ SUPABASE_CREDENCIAIS.md
 dist/
 dist-ssr/
 *.local
+winker_exports/
 
 # Debug logs
 npm-debug.log*
@@ -31,3 +32,4 @@ yarn-error.log*
 
 # Local Netlify folder
 .netlify
+estudos-oss/

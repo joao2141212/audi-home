@@ -147,9 +147,45 @@ administradoras → condominios → perfis (1:1 with auth.users)
 - supabase/functions/process-extrato/index.ts
 - supabase/functions/_shared/statement-parser.ts
 
+## Flow: Winker (studied 2026-07-15, CBM + docs + migration)
+
+### Role
+Winker = fonte operacional/documental do condomínio (API pública). Não copiar produto ilegalmente; só o que a API expõe e o contrato do cliente permite. Fonte doc: `docs/WINKER_INTEGRATION.md`.
+
+### Happy path (manual UI)
+1. Tab `winker` → `WinkerImport`
+2. Form: condominio_id, username, password, key (string!), id_portal
+3. `sync()` → `supabase.functions.invoke('sync-winker', { body })`
+4. Edge: auth (JWT user ou `x-sync-secret` agendado) → `WinkerClient.login` POST `/auth/login` → GET me/division/document/about/provider/booking/maintenance
+5. Upsert: winker_connections, winker_divisions, winker_units, winker_documents (+ providers/bookings/maintenance se migration)
+6. UI limpa password do form; reload connection + documents list from Supabase
+
+### Scheduled path
+Secrets: WINKER_USERNAME/PASSWORD/APP_KEY/PORTAL_ID/CONDOMINIO_ID + SYNC_WINKER_SECRET  
+curl POST com header `x-sync-secret` e body `{"trigger_source":"scheduled"}`
+
+### Tables (migration 20260610010000)
+winker_connections (1:1 condominio), winker_divisions, winker_units, winker_documents (is_financial flag), + related external rows per migration rest
+
+### Risks
+- Credentials entram no body do invoke (password em transit); connection table só guarda hints, não secret full (verify edge storage)
+- API key must be string (doc)
+- estudos-oss still pollutes graph; always path= frontend|supabase|sync-winker
+- Domain: legal/ethical scope of mirroring Winker data = HIPOTESE until Pedro+Perplexity
+
+### Symbols
+- frontend/src/features/winker/WinkerImport.tsx (sync, load)
+- supabase/functions/sync-winker/index.ts (WinkerClient, upsert*)
+- docs/WINKER_INTEGRATION.md
+- supabase/migrations/20260610010000_winker_integration.sql
+
+## Flow: Open Finance (stub note — not deep-dived this pass)
+- UI: PluggyConnect* components; edge `open-finance`
+- Linked to bank items; detail next if demo needs it
+
 ## Traces
 - No runtime traces ingested yet (ingest_traces empty).
-- Plan: smoke extrato CSV small + comprovante upload + one reconcile approve; then ingest_traces.
+- Plan: smoke (1) comprovante upload (2) extrato CSV (3) winker sync dry-run or mock — then ingest_traces.
 
 ## Presentation pressure
 - Prefer documenting truth over new features.

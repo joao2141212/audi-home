@@ -13,7 +13,8 @@ import { ReserveFund } from './features/reserve/ReserveFund'
 import { ApprovalQueue } from './features/approval/ApprovalQueue'
 import { ComprovantesHistory } from './features/comprovantes/ComprovantesHistory'
 import { TenantManager } from './features/tenant/TenantManager'
-import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2, Menu, Building2, Shield, ClipboardCheck, History, Users } from 'lucide-react'
+import { WinkerImport } from './features/winker/WinkerImport'
+import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3, ShieldCheck, Wallet, Landmark, Loader2, Menu, Building2, Shield, ClipboardCheck, History, Users, Database } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import { LoginPage } from './pages/LoginPage'
@@ -23,7 +24,7 @@ import { getLogs } from './contexts/AuthContext'
 
 const queryClient = new QueryClient()
 
-type Tab = 'dashboard' | 'budget' | 'statements' | 'receipts' | 'revenue' | 'expenses' | 'compliance' | 'reserve' | 'reconciliation' | 'approval' | 'history' | 'tenants'
+type Tab = 'dashboard' | 'budget' | 'statements' | 'receipts' | 'revenue' | 'expenses' | 'compliance' | 'reserve' | 'reconciliation' | 'approval' | 'history' | 'tenants' | 'winker'
 
 export default function App() {
     const { user, logout, isAuthenticated, loading, authError } = useAuth()
@@ -98,6 +99,7 @@ export default function App() {
         { id: 'history' as Tab, label: 'Histórico Comprovantes', icon: History },
         { id: 'approval' as Tab, label: 'Fila de Revisão', icon: ClipboardCheck },
         { id: 'tenants' as Tab, label: 'Moradores', icon: Users },
+        { id: 'winker' as Tab, label: 'Winker', icon: Database },
         { id: 'revenue' as Tab, label: 'Receitas', icon: Zap },
         { id: 'expenses' as Tab, label: 'Despesas', icon: TrendingDown },
         { id: 'compliance' as Tab, label: 'Compliance', icon: ShieldCheck },
@@ -298,6 +300,10 @@ export default function App() {
                             <div className={activeTab === 'tenants' ? 'block animate-in fade-in duration-300' : 'hidden'}>
                                 <TenantManager />
                             </div>
+
+                            <div className={activeTab === 'winker' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+                                <WinkerImport />
+                            </div>
                         </div>
                     </div>
                 </main>
@@ -305,4 +311,3 @@ export default function App() {
         </QueryClientProvider>
     )
 }
-
