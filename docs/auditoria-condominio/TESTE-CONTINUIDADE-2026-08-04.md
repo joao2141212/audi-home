@@ -291,3 +291,21 @@ aplicar SQL porque o projeto recusou criar o login temporário do CLI com
 `permission denied to alter role`. A migration não foi aplicada por esse
 caminho. O endpoint administrativo autorizado foi usado em seguida e retornou
 HTTP 201; a consulta remota das colunas e da policy confirmou o efeito.
+
+## Correção responsiva da Central de Reconciliação em 2026-08-04
+
+### Problema observado
+
+Na tela publicada, ao selecionar um comprovante com viewport de aproximadamente
+800px CSS, o cartão selecionado ocupava toda a largura e a conferência com o
+extrato era empurrada para depois dos 81 comprovantes. A instrução dizia para
+ver os matches "ao lado", mas isso não era possível nesse tamanho.
+
+### Solução aplicada
+
+- [x] A grade da Central mudou de `lg:grid-cols-5` para `md:grid-cols-5`.
+- [x] A lista usa `md:col-span-2` e a conferência usa `md:col-span-3`.
+- [x] Em telas menores que `md`, o empilhamento continua intencional para não
+  quebrar a leitura em celular.
+- [x] Build e lint passaram após a alteração.
+- [ ] Publicar o bundle corrigido e repetir a inspeção da tela autenticada.

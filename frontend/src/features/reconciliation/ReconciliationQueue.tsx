@@ -190,8 +190,8 @@ export function ReconciliationQueue() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <div className="lg:col-span-2 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+                <div className="md:col-span-2 space-y-4">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest px-2">Comprovantes Pendentes</h3>
                     <div className="space-y-3">
                         {queue.map((item) => (
@@ -227,7 +227,7 @@ export function ReconciliationQueue() {
                     </div>
                 </div>
 
-                <div className="lg:col-span-3 space-y-4">
+                <div className="md:col-span-3 space-y-4">
                     <div className="flex items-center justify-between px-2">
                         <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Conferência com o extrato</h3>
                         {selectedItem && <span className="text-xs font-semibold text-violet-600">1 comprovante selecionado</span>}
