@@ -7,7 +7,18 @@ import {
     FileText,
     BadgeCheck,
     ShieldCheck,
-    ShieldX
+    ShieldX,
+    Sparkles,
+    Leaf,
+    Waves,
+    Zap,
+    Droplets,
+    Flame,
+    Wrench,
+    BarChart3,
+    Scale,
+    Building,
+    ClipboardList
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { supabase } from '../../lib/supabase'
@@ -34,19 +45,19 @@ interface AuditResult {
 }
 
 const SERVICE_TYPES = [
-    { value: 'elevador', label: 'Manutenção de Elevador', icon: '🛗' },
-    { value: 'limpeza', label: 'Serviços de Limpeza', icon: '🧹' },
-    { value: 'seguranca', label: 'Segurança/Portaria', icon: '🛡️' },
-    { value: 'jardinagem', label: 'Jardinagem', icon: '🌿' },
-    { value: 'piscina', label: 'Manutenção de Piscina', icon: '🏊' },
-    { value: 'energia', label: 'Energia Elétrica', icon: '⚡' },
-    { value: 'agua', label: 'Água/Esgoto', icon: '💧' },
-    { value: 'gas', label: 'Gás', icon: '🔥' },
-    { value: 'manutencao', label: 'Manutenção Predial', icon: '🔧' },
-    { value: 'contabilidade', label: 'Contabilidade', icon: '📊' },
-    { value: 'advocacia', label: 'Advocacia', icon: '⚖️' },
-    { value: 'administracao', label: 'Administração', icon: '🏢' },
-    { value: 'outros', label: 'Outros', icon: '📋' }
+    { value: 'elevador', label: 'Manutenção de Elevador', icon: Building2 },
+    { value: 'limpeza', label: 'Serviços de Limpeza', icon: Sparkles },
+    { value: 'seguranca', label: 'Segurança/Portaria', icon: ShieldCheck },
+    { value: 'jardinagem', label: 'Jardinagem', icon: Leaf },
+    { value: 'piscina', label: 'Manutenção de Piscina', icon: Waves },
+    { value: 'energia', label: 'Energia Elétrica', icon: Zap },
+    { value: 'agua', label: 'Água/Esgoto', icon: Droplets },
+    { value: 'gas', label: 'Gás', icon: Flame },
+    { value: 'manutencao', label: 'Manutenção Predial', icon: Wrench },
+    { value: 'contabilidade', label: 'Contabilidade', icon: BarChart3 },
+    { value: 'advocacia', label: 'Advocacia', icon: Scale },
+    { value: 'administracao', label: 'Administração', icon: Building },
+    { value: 'outros', label: 'Outros', icon: ClipboardList }
 ]
 
 // Mapeamento de CNAEs permitidos por tipo de serviço (Anti-Fraude)
@@ -288,7 +299,7 @@ export function ExpenseAuditForm({ transaction, onClose }: ExpenseAuditFormProps
                                                     : "border-gray-200 hover:border-gray-300"
                                             )}
                                         >
-                                            <span className="text-lg">{type.icon}</span>
+                                            <type.icon className="h-5 w-5 text-blue-600" aria-hidden="true" />
                                             <span className="text-xs font-medium text-gray-700">{type.label}</span>
                                         </button>
                                     ))}
@@ -301,7 +312,7 @@ export function ExpenseAuditForm({ transaction, onClose }: ExpenseAuditFormProps
                                     <option value="">Ou selecione outro...</option>
                                     {SERVICE_TYPES.map((type) => (
                                         <option key={type.value} value={type.value}>
-                                            {type.icon} {type.label}
+                                            {type.label}
                                         </option>
                                     ))}
                                 </select>

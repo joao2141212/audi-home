@@ -60,7 +60,7 @@ export function AddTransactionForm() {
         }
 
         try {
-            console.log("🚀 Invoking transactions Edge Function: add-manual...")
+            console.log("Invoking transactions Edge Function: add-manual")
             const { data, error } = await supabase.functions.invoke('transactions', {
                 body: { ...payload, action: 'add-manual' }
             })
@@ -279,9 +279,11 @@ export function AddTransactionForm() {
                         {result.data?.reconciliacao && (
                             <div className="text-sm text-emerald-700 mt-2">
                                 {result.data.reconciliacao.matches_criados > 0 ? (
-                                    <p>
-                                        ✨ {result.data.reconciliacao.matches_criados} comprovante(s) compatível(s) encontrado(s)!
+                                    <p className="flex items-start gap-1.5">
+                                        <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                                        <span>{result.data.reconciliacao.matches_criados} comprovante(s) compatível(s) encontrado(s)!
                                         Verifique a fila de reconciliação.
+                                        </span>
                                     </p>
                                 ) : (
                                     <p>

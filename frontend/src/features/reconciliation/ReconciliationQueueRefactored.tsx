@@ -41,7 +41,7 @@ export function ReconciliationQueueRefactored() {
     const fetchQueue = async () => {
         setLoading(true)
         try {
-            console.log("🚀 Calling reconciliation Edge Function...")
+            console.log("Calling reconciliation Edge Function")
             const { data, error } = await supabase.functions.invoke(
                 `reconciliation?condominio_id=${CONDOMINIO_ID}`,
                 { method: 'GET' }
@@ -321,8 +321,9 @@ export function ReconciliationQueueRefactored() {
                                         </span>
                                     )}
                                     {item.metadata.cnpj_match && (
-                                        <span className="text-emerald-600 font-medium">
-                                            ✓ CNPJ corresponde
+                                        <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
+                                            <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                                            CNPJ corresponde
                                         </span>
                                     )}
                                 </div>
@@ -351,8 +352,9 @@ export function ReconciliationQueueRefactored() {
 
                             {item.status === 'concluido' && (
                                 <div className="p-3 bg-gray-100 rounded-lg text-center">
-                                    <span className="text-sm text-gray-600 font-medium">
-                                        ✓ Reconciliação concluída
+                                    <span className="inline-flex items-center gap-1 text-sm text-gray-600 font-medium">
+                                        <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                                        Reconciliação concluída
                                     </span>
                                 </div>
                             )}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, FileText, CheckCircle, XCircle, AlertCircle, Loader } from 'lucide-react'
+import { Upload, FileText, CheckCircle, XCircle, AlertCircle, Loader, BarChart3, Bot, Coins, Database, AlertTriangle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { supabase } from '../../lib/supabase'
 
@@ -15,7 +15,40 @@ export function UploadComprovantes() {
     const [files, setFiles] = useState<UploadedFile[]>([])
     const [isDragging, setIsDragging] = useState(false)
 
-    const CONDOMINIO_ID = 'demo_condo_1'
+    const supportedExtensions = /\.(pdf|doc|docx|odt|txt|rtf|csv|json|xml|html?|xls|xlsx|ppt|pptx|jpg|jpeg|png|webp|heic|heif|bmp|gif|tif|tiff)$/i
+
+    const getMimeType = (file: File) => {
+        if (file.type) return file.type
+        const extension = file.name.split('.').pop()?.toLowerCase()
+        const mimeByExtension: Record<string, string> = {
+            pdf: 'application/pdf',
+            doc: 'application/msword',
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            odt: 'application/vnd.oasis.opendocument.text',
+            xls: 'application/vnd.ms-excel',
+            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ppt: 'application/vnd.ms-powerpoint',
+            pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            txt: 'text/plain',
+            rtf: 'text/rtf',
+            csv: 'text/csv',
+            json: 'application/json',
+            xml: 'application/xml',
+            html: 'text/html',
+            htm: 'text/html',
+            jpg: 'image/jpeg',
+            jpeg: 'image/jpeg',
+            png: 'image/png',
+            webp: 'image/webp',
+            heic: 'image/heic',
+            heif: 'image/heif',
+            bmp: 'image/bmp',
+            gif: 'image/gif',
+            tif: 'image/tiff',
+            tiff: 'image/tiff',
+        }
+        return extension ? mimeByExtension[extension] || 'application/octet-stream' : 'application/octet-stream'
+    }
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault()
@@ -32,12 +65,10 @@ export function UploadComprovantes() {
         setIsDragging(false)
 
         const droppedFiles = Array.from(e.dataTransfer.files)
-        const validFiles = droppedFiles.filter(f =>
-            f.name.match(/\.(xml|json|pdf|jpg|jpeg|png|webp)$/i)
-        )
+        const validFiles = droppedFiles.filter(f => supportedExtensions.test(f.name))
 
         if (validFiles.length === 0) {
-            alert('Formatos suportados: XML, JSON, PDF, Imagem (JPG/PNG)')
+            alert('Formatos suportados: PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, TXT/RTF/CSV, XML/JSON/HTML e imagens JPG/PNG/WebP/HEIC')
             return
         }
 
@@ -60,6 +91,31 @@ export function UploadComprovantes() {
 
         setFiles(prev => [...prev, ...newFiles])
 
+        const markInitialError = (message: string) => setFiles(prev => prev.map(file =>
+            newFiles.some(candidate => candidate.id === file.id)
+                ? { ...file, status: 'error', error: message }
+                : file
+        ))
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) {
+            markInitialError('Sua sessão expirou. Entre novamente para enviar o comprovante.')
+            return
+        }
+
+        const { data: profile, error: profileError } = await supabase
+            .from('perfis')
+            .select('condominio_id')
+            .eq('id', user.id)
+            .single()
+
+        if (profileError || !profile?.condominio_id) {
+            markInitialError('Não foi possível identificar o condomínio da sessão.')
+            return
+        }
+
+        const condominioId = profile.condominio_id
+
         for (const uploadedFile of newFiles) {
             try {
                 // Converter para Base64 para a Edge Function
@@ -69,13 +125,35 @@ export function UploadComprovantes() {
                     reader.readAsDataURL(uploadedFile.file)
                 })
 
-                console.log(`🚀 Calling process-comprovante for ${uploadedFile.file.name}...`)
+                const mimeType = getMimeType(uploadedFile.file)
+                const storagePath = `${condominioId}/${crypto.randomUUID()}-${uploadedFile.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+                const { error: storageError } = await supabase.storage
+                    .from('comprovantes')
+                    .upload(storagePath, uploadedFile.file, { contentType: mimeType, upsert: false })
+                if (storageError) throw new Error(`Falha ao armazenar o arquivo: ${storageError.message}`)
+
+                const { data: receipt, error: receiptError } = await supabase
+                    .from('comprovantes')
+                    .insert({
+                        condominio_id: condominioId,
+                        arquivo_nome: uploadedFile.file.name,
+                        arquivo_url: storagePath,
+                        tipo_arquivo: mimeType,
+                        status: 'pendente',
+                    })
+                    .select('id')
+                    .single()
+                if (receiptError || !receipt?.id) {
+                    await supabase.storage.from('comprovantes').remove([storagePath])
+                    throw new Error(`Falha ao registrar o comprovante: ${receiptError?.message || 'ID ausente'}`)
+                }
 
                 const { data, error } = await supabase.functions.invoke('process-comprovante', {
                     body: {
-                        file: fileBase64,
-                        fileName: uploadedFile.file.name,
-                        condominio_id: CONDOMINIO_ID
+                        comprovante_id: receipt.id,
+                        file_base64: fileBase64,
+                        mime_type: mimeType,
+                        filename: uploadedFile.file.name,
                     }
                 })
 
@@ -87,7 +165,7 @@ export function UploadComprovantes() {
                         : f
                 ))
             } catch (error) {
-                console.error("❌ Link Error:", error)
+                console.error("Link error:", error)
                 setFiles(prev => prev.map(f =>
                     f.id === uploadedFile.id
                         ? { ...f, status: 'error', error: error instanceof Error ? error.message : 'Erro ao processar' }
@@ -150,7 +228,7 @@ export function UploadComprovantes() {
                     type="file"
                     id="file-upload"
                     className="hidden"
-                    accept=".xml,.json,.pdf,.jpg,.jpeg,.png,.webp"
+                    accept=".pdf,.doc,.docx,.odt,.txt,.rtf,.csv,.json,.xml,.html,.htm,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.gif,.tif,.tiff"
                     multiple
                     onChange={handleFileSelect}
                 />
@@ -174,7 +252,7 @@ export function UploadComprovantes() {
                             ou clique para selecionar
                         </p>
                         <p className="text-xs text-gray-400">
-                            Formatos suportados: XML, JSON, PDF, Imagem (IA)
+                            Formatos suportados: PDF, DOC/DOCX/ODT, XLS/XLSX, PPT/PPTX, TXT/RTF/CSV, XML/JSON/HTML e imagens JPG/PNG/WEBP/HEIC/BMP/GIF/TIFF (até 12 MB)
                         </p>
                     </div>
                 </label>
@@ -270,25 +348,27 @@ export function UploadComprovantes() {
                                                     <div>
                                                         <span className="text-gray-500">Fornecedor:</span>
                                                         <p className="font-medium text-gray-900">
-                                                            {uploadedFile.data.dados_extraidos.razao_social_emissor}
+                                                            {uploadedFile.data.dados_extraidos?.razao_social_emissor || uploadedFile.data.ocr_raw?.nf?.razao_social_emissor || 'Não identificado'}
                                                         </p>
                                                     </div>
                                                     <div>
                                                         <span className="text-gray-500">CNPJ:</span>
                                                         <p className="font-medium text-gray-900">
-                                                            {uploadedFile.data.dados_extraidos.cnpj_emissor}
+                                                            {uploadedFile.data.dados_extraidos?.cnpj_emissor || uploadedFile.data.ocr_raw?.nf?.cnpj_emissor || 'Não identificado'}
                                                         </p>
                                                     </div>
                                                     <div>
                                                         <span className="text-gray-500">Valor:</span>
                                                         <p className="font-medium text-emerald-600">
-                                                            {formatCurrency(uploadedFile.data.dados_extraidos.valor_total)}
+                                                            {formatCurrency(Number(uploadedFile.data.dados_extraidos?.valor_total ?? uploadedFile.data.ocr_raw?.nf?.valor_total ?? 0))}
                                                         </p>
                                                     </div>
                                                     <div>
                                                         <span className="text-gray-500">Data:</span>
                                                         <p className="font-medium text-gray-900">
-                                                            {new Date(uploadedFile.data.dados_extraidos.data_emissao).toLocaleDateString('pt-BR')}
+                                                            {uploadedFile.data.dados_extraidos?.data_emissao || uploadedFile.data.ocr_raw?.nf?.data_emissao
+                                                                ? new Date(uploadedFile.data.dados_extraidos?.data_emissao || uploadedFile.data.ocr_raw?.nf?.data_emissao).toLocaleDateString('pt-BR')
+                                                                : 'Não identificada'}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -297,7 +377,10 @@ export function UploadComprovantes() {
                                                 {uploadedFile.data.processamento && (
                                                     <div className="mt-3 pt-3 border-t border-gray-200">
                                                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                                                            📊 Detalhes do Processamento
+                                                            <span className="inline-flex items-center gap-1.5">
+                                                                <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
+                                                                Detalhes do Processamento
+                                                            </span>
                                                         </p>
                                                         <div className="flex flex-wrap gap-2 text-xs">
                                                             <span className={cn(
@@ -306,7 +389,12 @@ export function UploadComprovantes() {
                                                                     ? "bg-purple-100 text-purple-700"
                                                                     : "bg-blue-100 text-blue-700"
                                                             )}>
-                                                                {uploadedFile.data.processamento.metodo === 'gemini_ai' ? '🤖 IA' : '📄 Parser Nativo'}
+                                                                <span className="inline-flex items-center gap-1">
+                                                                    {uploadedFile.data.processamento.metodo === 'gemini_ai'
+                                                                        ? <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+                                                                        : <FileText className="h-3.5 w-3.5" aria-hidden="true" />}
+                                                                    {uploadedFile.data.processamento.metodo === 'gemini_ai' ? 'IA' : 'Parser Nativo'}
+                                                                </span>
                                                             </span>
                                                             {uploadedFile.data.processamento.modelo && (
                                                                 <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-600">
@@ -323,7 +411,10 @@ export function UploadComprovantes() {
                                                             )}
                                                             {uploadedFile.data.processamento.tokens_total === 0 && (
                                                                 <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                                                                    💰 Custo Zero
+                                                                    <span className="inline-flex items-center gap-1">
+                                                                        <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+                                                                        Custo zero
+                                                                    </span>
                                                                 </span>
                                                             )}
                                                         </div>
@@ -334,7 +425,10 @@ export function UploadComprovantes() {
                                                 {uploadedFile.data.armazenamento && (
                                                     <div className="mt-3 pt-3 border-t border-gray-200">
                                                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                                                            💾 Armazenamento
+                                                            <span className="inline-flex items-center gap-1.5">
+                                                                <Database className="h-3.5 w-3.5" aria-hidden="true" />
+                                                                Armazenamento
+                                                            </span>
                                                         </p>
                                                         <div className="grid grid-cols-2 gap-2 text-xs">
                                                             <div>
@@ -368,8 +462,9 @@ export function UploadComprovantes() {
                                                             </div>
                                                         </div>
                                                         {!uploadedFile.data.armazenamento.persistente && (
-                                                            <p className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                                                                ⚠️ Dados em memória volátil. Serão perdidos ao reiniciar o servidor.
+                                                            <p className="mt-2 inline-flex items-start gap-1.5 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                                                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                                                                Dados em memória volátil. Serão perdidos ao reiniciar o servidor.
                                                             </p>
                                                         )}
                                                     </div>
@@ -422,7 +517,7 @@ export function UploadComprovantes() {
                         <div>
                             <h4 className="font-medium text-blue-900 mb-1">Como funciona?</h4>
                             <ul className="text-sm text-blue-700 space-y-1">
-                                <li>1. Faça upload de notas fiscais eletrônicas (XML) ou comprovantes (JSON)</li>
+                                <li>1. Faça upload de PDF, DOC/DOCX, foto/scan ou arquivo textual</li>
                                 <li>2. O sistema extrai automaticamente: fornecedor, CNPJ, valor e data</li>
                                 <li>3. Busca transações bancárias compatíveis (valor ±R$0,05, data ±3 dias)</li>
                                 <li>4. Sugere reconciliações automáticas na fila para aprovação</li>

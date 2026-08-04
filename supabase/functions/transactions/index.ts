@@ -10,6 +10,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PluggyClient } from "../_shared/pluggy-client.ts";
+import { getSupabaseSecretKey } from "../_shared/supabase-keys.ts";
 
 declare const Deno: any;
 
@@ -28,7 +29,7 @@ serve(async (req: Request) => {
 
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabaseKey = getSupabaseSecretKey();
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         // GET /transactions - Listar transações
@@ -74,8 +75,8 @@ serve(async (req: Request) => {
                 total: transacoes?.length || 0,
                 creditos: transacoes?.filter(t => t.type === 'CREDIT').length || 0,
                 debitos: transacoes?.filter(t => t.type === 'DEBIT').length || 0,
-                pendentes: transacoes?.filter(t => t.status_reconciliacao === 'pendente').length || 0,
-                reconciliados: transacoes?.filter(t => t.status_reconciliacao === 'reconciliado').length || 0,
+                pendentes: transacoes?.filter(t => !t.conciliado && t.status_reconciliacao === 'pendente').length || 0,
+                reconciliados: transacoes?.filter(t => t.conciliado || t.status_reconciliacao === 'reconciliado').length || 0,
                 total_creditos: transacoes?.filter(t => t.type === 'CREDIT').reduce((s, t) => s + (t.valor || 0), 0) || 0,
                 total_debitos: transacoes?.filter(t => t.type === 'DEBIT').reduce((s, t) => s + (t.valor || 0), 0) || 0
             };
@@ -103,21 +104,38 @@ serve(async (req: Request) => {
                 );
             }
 
-            const transactionId = `tx_manual_${Date.now()}`;
-            const timestamp = new Date().toISOString();
+            const transactionId = crypto.randomUUID();
+            const extratoId = crypto.randomUUID();
+            const normalizedType = typeValue?.toUpperCase() || (valor >= 0 ? 'CREDIT' : 'DEBIT');
+
+            const { error: extratoError } = await supabase
+                .from('extratos_bancarios')
+                .insert({
+                    id: extratoId,
+                    condominio_id,
+                    arquivo_nome: `manual-${transactionId}.csv`,
+                    periodo_inicio: data_transacao,
+                    periodo_fim: data_transacao,
+                    status: 'processado',
+                    fonte: 'manual',
+                });
+
+            if (extratoError) {
+                throw new Error(`Erro ao inserir extrato manual: ${extratoError.message}`);
+            }
 
             const { error } = await supabase
                 .from('transacoes_bancarias')
                 .insert({
                     id: transactionId,
+                    extrato_id: extratoId,
                     condominio_id,
                     data_transacao,
                     descricao: descricao || 'Transação manual',
                     valor: Math.abs(valor),
-                    type: typeValue?.toUpperCase() || (valor >= 0 ? 'CREDIT' : 'DEBIT'),
-                    fonte: 'manual',
+                    tipo: normalizedType,
+                    type: normalizedType,
                     status_reconciliacao: 'pendente',
-                    criado_em: timestamp
                 });
 
             if (error) {
@@ -211,11 +229,18 @@ serve(async (req: Request) => {
         );
 
     } catch (error: any) {
-        console.error('❌ Erro:', error);
+        const message = error?.message || 'Erro interno';
+        const errorClass = /^[A-Z0-9_]+$/.test(message)
+            ? message.slice(0, 80)
+            : 'TRANSACTIONS_FAILED';
+        console.error(JSON.stringify({
+            fn: 'transactions',
+            status: 'error',
+            error_class: errorClass,
+        }));
         return new Response(
             JSON.stringify({
-                error: error.message,
-                stack: error.stack
+                error: errorClass,
             }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

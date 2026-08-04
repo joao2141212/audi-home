@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback } from 'react'
 import {
     FileText, Download, Search,
     ChevronDown, ChevronUp,
     ShieldAlert, AlertTriangle, Clock, CheckCircle2,
-    XCircle, RefreshCw, Loader2, Building2, User,
+    XCircle, RefreshCw, Loader2, Building2, User, Check, Eye,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -45,14 +45,27 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string }>
 }
 
 const TIPO_CONFIG: Record<string, string> = {
-    COMPROVANTE_PIX: '💳 Pix',
-    NOTA_FISCAL:     '🧾 Nota Fiscal',
-    BOLETO:          '📄 Boleto',
-    RECIBO:          '📝 Recibo',
-    DESCONHECIDO:    '❓ Desconhecido',
+    COMPROVANTE_PIX: 'Pix',
+    NOTA_FISCAL:     'Nota Fiscal',
+    BOLETO:          'Boleto',
+    RECIBO:          'Recibo',
+    DESCONHECIDO:    'Desconhecido',
 }
 
-export function ComprovantesHistory() {
+const STATUS_FILTERS = [
+    { value: 'todos', label: 'Todos os status', icon: FileText },
+    { value: 'auditado', label: 'Aprovados', icon: CheckCircle2 },
+    { value: 'suspeito', label: 'Suspeitos', icon: ShieldAlert },
+    { value: 'alerta', label: 'Alertas', icon: AlertTriangle },
+    { value: 'pendente', label: 'Pendentes', icon: Clock },
+    { value: 'rejeitado', label: 'Rejeitados', icon: XCircle },
+] as const
+
+interface ComprovantesHistoryProps {
+    onOpenReview?: (itemId: string) => void
+}
+
+export function ComprovantesHistory({ onOpenReview }: ComprovantesHistoryProps) {
     const { user } = useAuth()
     const [items, setItems] = useState<ComprovItem[]>([])
     const [loading, setLoading] = useState(true)
@@ -63,6 +76,7 @@ export function ComprovantesHistory() {
     const [filterStatus, setFilterStatus] = useState('todos')
     const [filterTipo, setFilterTipo] = useState('todos')
     const [filterMorador, setFilterMorador] = useState('')
+    const [statusMenuOpen, setStatusMenuOpen] = useState(false)
     const [dateFrom, setDateFrom] = useState('')
     const [dateTo, setDateTo] = useState('')
     const [sortBy, setSortBy] = useState<'created_at' | 'fraud_score' | 'valor'>('created_at')
@@ -161,6 +175,17 @@ export function ComprovantesHistory() {
             .reduce((s, i) => s + (Number(i.valor) || 0), 0)
     }
 
+    const activeStatusFilter = STATUS_FILTERS.find(option => option.value === filterStatus) || STATUS_FILTERS[0]
+    const ActiveStatusIcon = activeStatusFilter.icon
+
+    const openReview = (item: ComprovItem) => {
+        if (onOpenReview) {
+            onOpenReview(item.id)
+            return
+        }
+        setExpanded(current => current === item.id ? null : item.id)
+    }
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -204,18 +229,51 @@ export function ComprovantesHistory() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <select
-                        value={filterStatus}
-                        onChange={e => setFilterStatus(e.target.value)}
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    >
-                        <option value="todos">Todos os status</option>
-                        <option value="auditado">✅ Aprovados</option>
-                        <option value="suspeito">🚨 Suspeitos</option>
-                        <option value="alerta">⚠️ Alertas</option>
-                        <option value="pendente">🕐 Pendentes</option>
-                        <option value="rejeitado">❌ Rejeitados</option>
-                    </select>
+                    <div className="relative">
+                        <button
+                            type="button"
+                            aria-haspopup="listbox"
+                            aria-expanded={statusMenuOpen}
+                            onClick={() => setStatusMenuOpen(open => !open)}
+                            className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm outline-none transition-colors hover:border-indigo-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                        >
+                            <ActiveStatusIcon className="h-4 w-4 shrink-0 text-slate-500" />
+                            <span className="min-w-0 flex-1 truncate">{activeStatusFilter.label}</span>
+                            <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", statusMenuOpen && "rotate-180")} />
+                        </button>
+                        {statusMenuOpen && (
+                            <div
+                                role="listbox"
+                                aria-label="Filtrar por status"
+                                className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                            >
+                                {STATUS_FILTERS.map(option => {
+                                    const OptionIcon = option.icon
+                                    const selected = filterStatus === option.value
+                                    return (
+                                        <button
+                                            key={option.value}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={selected}
+                                            onClick={() => {
+                                                setFilterStatus(option.value)
+                                                setStatusMenuOpen(false)
+                                            }}
+                                            className={cn(
+                                                "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
+                                                selected ? "bg-indigo-50 font-bold text-indigo-700" : "text-slate-700 hover:bg-slate-50"
+                                            )}
+                                        >
+                                            <OptionIcon className={cn("h-4 w-4 shrink-0", selected ? "text-indigo-600" : "text-slate-400")} />
+                                            <span className="flex-1">{option.label}</span>
+                                            {selected && <Check className="h-4 w-4 text-indigo-600" />}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
 
                     <select
                         value={filterTipo}
@@ -223,10 +281,10 @@ export function ComprovantesHistory() {
                         className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     >
                         <option value="todos">Todos os tipos</option>
-                        <option value="COMPROVANTE_PIX">💳 Pix</option>
-                        <option value="NOTA_FISCAL">🧾 Nota Fiscal</option>
-                        <option value="BOLETO">📄 Boleto</option>
-                        <option value="RECIBO">📝 Recibo</option>
+                        <option value="COMPROVANTE_PIX">Pix</option>
+                        <option value="NOTA_FISCAL">Nota Fiscal</option>
+                        <option value="BOLETO">Boleto</option>
+                        <option value="RECIBO">Recibo</option>
                     </select>
 
                     <input
@@ -290,9 +348,18 @@ export function ComprovantesHistory() {
                                 const isExp = expanded === item.id
 
                                 return (
-                                    <>
-                                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                                            onClick={() => setExpanded(isExp ? null : item.id)}>
+                                    <Fragment key={item.id}>
+                                        <tr key={item.id}
+                                            className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                            onClick={() => openReview(item)}
+                                            onKeyDown={event => {
+                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                    event.preventDefault()
+                                                    openReview(item)
+                                                }
+                                            }}
+                                            tabIndex={0}
+                                            aria-label={`Abrir revisão de ${item.arquivo_nome}`}>
                                             <td className="px-5 py-3">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
@@ -311,7 +378,10 @@ export function ComprovantesHistory() {
                                                 </div>
                                             </td>
                                             <td className="px-5 py-3 hidden md:table-cell">
-                                                <span className="text-sm">{TIPO_CONFIG[item.tipo_documento || ''] || '❓'}</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-sm">
+                                                        <FileText className="h-3.5 w-3.5 text-slate-400" />
+                                                        {TIPO_CONFIG[item.tipo_documento || ''] || 'Desconhecido'}
+                                                    </span>
                                                 {item.pix_autotransferencia && (
                                                     <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 font-black px-1.5 py-0.5 rounded-full uppercase">Auto!</span>
                                                 )}
@@ -348,6 +418,20 @@ export function ComprovantesHistory() {
                                             </td>
                                             <td className="px-5 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
+                                                    {onOpenReview && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={event => {
+                                                                event.stopPropagation()
+                                                                onOpenReview(item.id)
+                                                            }}
+                                                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-[10px] font-black text-indigo-700 transition-colors hover:bg-indigo-100"
+                                                            title="Abrir revisão do comprovante"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                            <span className="hidden sm:inline">Revisar</span>
+                                                        </button>
+                                                    )}
                                                     {item.arquivo_url && (
                                                         <button
                                                             type="button"
@@ -392,7 +476,7 @@ export function ComprovantesHistory() {
                                                 </td>
                                             </tr>
                                         )}
-                                    </>
+                                    </Fragment>
                                 )
                             })}
                         </tbody>

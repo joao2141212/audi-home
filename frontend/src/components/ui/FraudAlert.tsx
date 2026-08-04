@@ -1,4 +1,4 @@
-import { AlertTriangle, Shield, FileWarning, Copy, Edit, FileX } from 'lucide-react'
+import { AlertTriangle, Shield, FileWarning, Copy, Edit, FileX, ShieldAlert, CheckCircle2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 
@@ -95,8 +95,9 @@ export function FraudAlertBadge({ receipt }: FraudAlertBadgeProps) {
                     </div>
 
                     {documento_alterado && (
-                        <p className="font-semibold mb-2">
-                            ⚠️ Documento apresenta sinais de alteração
+                        <p className="font-semibold mb-2 flex items-center gap-1.5">
+                            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            Documento apresenta sinais de alteração
                         </p>
                     )}
 
@@ -119,8 +120,9 @@ export function FraudAlertBadge({ receipt }: FraudAlertBadgeProps) {
 
                     {severity === 'critical' && (
                         <div className="mt-3 pt-3 border-t border-red-300">
-                            <p className="text-sm font-semibold">
-                                🚨 Ação recomendada: Rejeitar comprovante e solicitar novo documento
+                            <p className="text-sm font-semibold flex items-start gap-1.5">
+                                <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                                Ação recomendada: Rejeitar comprovante e solicitar novo documento
                             </p>
                         </div>
                     )}
@@ -140,8 +142,9 @@ export function FraudScoreBadge({ score }: { score: number }) {
 
     if (score === 0) {
         return (
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-600 text-white">
-                ✓ Verificado
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-green-600 text-white">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Verificado
             </span>
         )
     }

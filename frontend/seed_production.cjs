@@ -1,3 +1,5 @@
+throw new Error('Legacy local Postgres seed disabled. Use seed_supabase.cjs.');
+
 const pg = require('pg');
 const connectionString = 'postgresql://postgres.vheqwyakucpvymjojezn:@Jp974403024@aws-0-us-west-2.pooler.supabase.com:6543/postgres';
 

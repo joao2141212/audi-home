@@ -21,6 +21,7 @@ export function BudgetManager() {
     const { user } = useAuth()
     const [budget, setBudget] = useState<BudgetItem[]>([])
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [newCategory, setNewCategory] = useState('')
     const [newValue, setNewValue] = useState('')
 
@@ -30,6 +31,7 @@ export function BudgetManager() {
             return
         }
         setLoading(true)
+        setError(null)
         try {
             // Pega o orçamento planejado
             const budgetData = await api.getBudget(user.condominio_id)
@@ -53,7 +55,9 @@ export function BudgetManager() {
 
             setBudget(combined)
         } catch (err) {
-            console.error('Erro ao buscar orçamento:', err)
+            const errorClass = String(err instanceof Error ? err.message : err).split(/\s|:/)[0] || 'BUDGET_LOAD_FAILED'
+            console.error(JSON.stringify({ fn: 'BudgetManager.fetchData', status: 'error', error_class: errorClass }))
+            setError('Não foi possível carregar o orçamento. Tente novamente.')
         } finally {
             setLoading(false)
         }
@@ -83,6 +87,21 @@ export function BudgetManager() {
     }
 
     if (loading) return <div className="p-8 text-center text-gray-500">Carregando orçamento...</div>
+
+    if (error) {
+        return (
+            <div className="min-h-[300px] flex flex-col items-center justify-center gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center">
+                <AlertTriangle className="h-10 w-10 text-rose-500" />
+                <div>
+                    <h2 className="text-lg font-bold text-rose-900">Orçamento indisponível</h2>
+                    <p className="mt-1 text-sm text-rose-700">{error}</p>
+                </div>
+                <button type="button" onClick={fetchData} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700">
+                    Tentar novamente
+                </button>
+            </div>
+        )
+    }
 
     const totalPlanned = budget.reduce((sum, item) => sum + item.valor_planejado, 0)
     const totalReal = budget.reduce((sum, item) => sum + (item.valor_real || 0), 0)
@@ -160,7 +179,9 @@ export function BudgetManager() {
                         budget.map((item) => {
                             const diff = (item.valor_real || 0) - item.valor_planejado
                             const isOver = diff > 0
-                            const percent = Math.min(((item.valor_real || 0) / item.valor_planejado) * 100, 100)
+                            const percent = item.valor_planejado > 0
+                                ? Math.min(((item.valor_real || 0) / item.valor_planejado) * 100, 100)
+                                : 0
 
                             return (
                                 <div key={item.id} className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm group hover:border-blue-200 transition-all">
@@ -184,7 +205,7 @@ export function BudgetManager() {
                                             )}>
                                                 {isOver ? '+' : ''} {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(diff)}
                                             </span>
-                                            <p className="text-xs text-gray-400 capitalize">{isOver ? 'Excesso detected' : 'Dentro do plano'}</p>
+                                            <p className="text-xs text-gray-400 capitalize">{isOver ? 'Excesso detectado' : 'Dentro do plano'}</p>
                                         </div>
                                     </div>
 
@@ -210,7 +231,7 @@ export function BudgetManager() {
                                     <div className="space-y-2">
                                         <div className="flex justify-between text-xs font-bold text-gray-500">
                                             <span>Execução Orçamentária</span>
-                                            <span>{Math.round(((item.valor_real || 0) / item.valor_planejado) * 100)}%</span>
+                                            <span>{Math.round(percent)}%</span>
                                         </div>
                                         <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
                                             <div

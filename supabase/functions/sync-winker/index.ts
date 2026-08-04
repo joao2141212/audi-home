@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getSupabasePublishableKey, getSupabaseSecretKey } from '../_shared/supabase-keys.ts'
 
 declare const Deno: any
 
@@ -9,6 +10,33 @@ const corsHeaders = {
 }
 
 const WINKER_BASE_URL = 'https://api.winker.com.br/v1'
+const WINKER_WEB_BASE_URL = 'https://app.winker.com.br'
+const WINKER_STORAGE_BUCKET = 'winker-documents'
+const WINKER_WEB_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+
+async function fetchWinkerBody<T>(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    stage: string,
+    readBody: (response: Response) => Promise<T>,
+) {
+    const controller = new AbortController()
+    const timeoutMs = Math.max(1_000, Number(Deno.env.get('WINKER_HTTP_TIMEOUT_MS') || 30_000))
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+        const response = await fetch(input, { ...init, signal: controller.signal })
+        const body = await readBody(response)
+        return { response, body }
+    } catch (error: any) {
+        if (error?.name === 'AbortError') {
+            throw new Error(`WINKER_WEB_${stage}_TIMEOUT`)
+        }
+        throw error
+    } finally {
+        clearTimeout(timeoutId)
+    }
+}
 
 type SyncBody = {
     condominio_id?: string
@@ -20,6 +48,8 @@ type SyncBody = {
     max_pages?: number
     trigger_source?: 'manual' | 'scheduled' | 'api'
 }
+
+type WinkerIntegrationMode = 'web' | 'rest'
 
 type RequestContext = {
     adminClient: any
@@ -51,7 +81,7 @@ class WinkerClient {
             body: JSON.stringify({
                 username: this.username,
                 password: this.password,
-                key: String(this.appKey),
+                ...(this.appKey ? { key: /^\d+$/.test(this.appKey) ? Number(this.appKey) : this.appKey } : {}),
             }),
         })
 
@@ -93,9 +123,135 @@ class WinkerClient {
     }
 }
 
+class WinkerWebClient {
+    private cookieHeader = ''
+
+    constructor(
+        private readonly baseUrl: string,
+        private readonly username: string,
+        private readonly password: string,
+    ) {}
+
+    async login() {
+        const { response } = await fetchWinkerBody(`${this.baseUrl}/intra/default/login`, {
+            method: 'POST',
+            redirect: 'manual',
+            headers: {
+                Accept: 'text/html,application/xhtml+xml',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': WINKER_WEB_USER_AGENT,
+            },
+            body: new URLSearchParams({
+                'LoginForm[username]': this.username,
+                'LoginForm[password]': this.password,
+            }),
+        }, 'LOGIN', async () => null)
+
+        const location = response.headers.get('location') || ''
+        const setCookieHeaders = typeof (response.headers as any).getSetCookie === 'function'
+            ? (response.headers as any).getSetCookie()
+            : [response.headers.get('set-cookie') || '']
+        const cookies = setCookieHeaders
+            .flatMap((value: string) => value.split(/,(?=[^;=]+=[^;]+)/))
+            .map((value: string) => value.split(';', 1)[0].trim())
+            .filter(Boolean)
+
+        const finalUrl = response.url || ''
+        const redirectedToPortal = location.includes('/intra') || (finalUrl.includes('/intra') && !finalUrl.includes('/default/login'))
+        const statusAllowed = (response.status >= 200 && response.status < 300) || (response.status >= 300 && response.status < 400)
+        if (!statusAllowed || !redirectedToPortal) {
+            throw new Error(`WINKER_WEB_LOGIN_FAILED_${response.status}_${redirectedToPortal ? 'PORTAL' : 'LOGIN_PAGE'}_${cookies.length > 0 ? 'COOKIE' : 'NO_COOKIE'}`)
+        }
+        if (cookies.length === 0) throw new Error('WINKER_WEB_SESSION_MISSING')
+
+        this.cookieHeader = cookies.join('; ')
+        return { location }
+    }
+
+    async html(path: string) {
+        const { response, body } = await fetchWinkerBody(new URL(path, this.baseUrl), {
+            headers: {
+                Accept: 'text/html,application/xhtml+xml',
+                Cookie: this.cookieHeader,
+                'User-Agent': WINKER_WEB_USER_AGENT,
+            },
+        }, 'PAGE', (pageResponse) => pageResponse.text())
+
+        if (!response.ok || response.url.includes('/default/login')) {
+            throw new Error(`WINKER_WEB_PAGE_FAILED ${response.status}`)
+        }
+
+        return body
+    }
+
+    async file(path: string) {
+        const { response, body } = await fetchWinkerBody(new URL(path, this.baseUrl), {
+            headers: {
+                Accept: 'application/pdf, application/octet-stream, application/zip',
+                Cookie: this.cookieHeader,
+                'User-Agent': WINKER_WEB_USER_AGENT,
+            },
+        }, 'FILE', (fileResponse) => fileResponse.arrayBuffer())
+
+        if (!response.ok || response.url.includes('/default/login')) {
+            throw new Error(`WINKER_WEB_DOWNLOAD_FAILED ${response.status}`)
+        }
+
+        const contentType = (response.headers.get('content-type') || 'application/octet-stream').split(';', 1)[0].trim().toLowerCase()
+        const bytes = new Uint8Array(body)
+        const magic = String.fromCharCode(...bytes.slice(0, 4))
+        const isPdf = magic === '%PDF'
+        const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04
+        if (contentType === 'text/html' && !isPdf && !isZip) throw new Error('WINKER_WEB_UNSUPPORTED_FILE')
+
+        const maxBytes = Number(Deno.env.get('WINKER_MAX_FILE_BYTES') || Deno.env.get('WINKER_MAX_PDF_BYTES') || 50_000_000)
+        if (bytes.byteLength > maxBytes) throw new Error('WINKER_FILE_TOO_LARGE')
+        return {
+            bytes,
+            contentType: isPdf ? 'application/pdf' : isZip ? 'application/zip' : contentType,
+            extension: isPdf ? 'pdf' : isZip ? 'zip' : inferWebFileExtension(path, contentType),
+        }
+    }
+}
+
+function inferWebFileExtension(path: string, contentType: string) {
+    const mimeExtensions: Record<string, string> = {
+        'application/pdf': 'pdf',
+        'application/zip': 'zip',
+        'application/msword': 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'application/vnd.ms-excel': 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+        'application/vnd.ms-powerpoint': 'ppt',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+        'image/tiff': 'tiff',
+        'text/plain': 'txt',
+        'text/csv': 'csv',
+        'application/json': 'json',
+        'application/xml': 'xml',
+        'text/xml': 'xml',
+        'text/rtf': 'rtf',
+    }
+    if (mimeExtensions[contentType]) return mimeExtensions[contentType]
+
+    try {
+        const extension = new URL(path, WINKER_WEB_BASE_URL).pathname.match(/\.([a-z0-9]{1,8})$/i)?.[1]
+        if (extension && !['php', 'html', 'htm'].includes(extension.toLowerCase())) return extension.toLowerCase()
+    } catch {
+        // Keep the generic extension when the provider path is not a valid URL.
+    }
+
+    return 'bin'
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
+    const correlationId = crypto.randomUUID()
     let syncRunId: string | null = null
     let adminClient: any = null
     let condominioId: string | null = null
@@ -108,6 +264,14 @@ serve(async (req) => {
 
         condominioId = resolveCondominioId(body, context)
         assertCondoAccess(condominioId, context)
+
+        console.log(JSON.stringify({
+            fn: 'sync-winker',
+            status: 'start',
+            correlation_id: correlationId,
+            condominio_id: condominioId,
+            trigger_source: body.trigger_source || (context.serviceTrigger ? 'scheduled' : 'manual'),
+        }))
 
         const triggerSource = body.trigger_source || (context.serviceTrigger ? 'scheduled' : 'manual')
         const { data: run, error: runError } = await adminClient
@@ -124,49 +288,78 @@ serve(async (req) => {
         syncRunId = run.id
 
         const credentials = resolveCredentials(body)
-        const winker = new WinkerClient(
-            credentials.baseUrl,
-            credentials.username,
-            credentials.password,
-            credentials.appKey,
-        )
-
-        const loginBody = await winker.login()
-        const meResult = await winker.get('/me')
-        const me = meResult?.body || {}
-
-        idPortal = resolvePortalId(body, me)
-        if (!idPortal) throw new Error('WINKER_PORTAL_NOT_FOUND')
-
-        const portalName = resolvePortalName(me, idPortal)
-
+        const integrationMode = resolveIntegrationMode(credentials.appKey)
+        let loginBody: any = null
+        let me: any = {}
+        let portalName: string | null = null
         const stats: Record<string, number> = {}
         const now = new Date().toISOString()
 
-        await upsertConnection(adminClient, {
-            condominioId,
-            idPortal,
-            portalName,
-            usernameHint: maskIdentifier(credentials.username),
-            appKeyHint: maskAppKey(credentials.appKey),
-            baseUrl: credentials.baseUrl,
-            rawMe: me,
-            now,
-        })
+        if (integrationMode === 'rest') {
+            const winker = new WinkerClient(
+                credentials.baseUrl,
+                credentials.username,
+                credentials.password,
+                credentials.appKey,
+            )
 
-        const divisionsResult = await winker.get(`/division?id_portal=${idPortal}&with_units=1`)
-        const divisions = Array.isArray(divisionsResult?.body) ? divisionsResult.body : []
-        await upsertDivisionsAndUnits(adminClient, condominioId, idPortal, divisions, now)
-        stats.divisions = divisions.length
-        stats.units = divisions.reduce((sum: number, division: any) => sum + (Array.isArray(division.units) ? division.units.length : 0), 0)
+            loginBody = await winker.login()
+            const meResult = await winker.get('/me')
+            me = meResult?.body || {}
 
-        const documents = await fetchAllDocuments(winker, idPortal, body.max_pages ?? 100)
-        await upsertDocuments(adminClient, condominioId, idPortal, documents, now)
-        stats.documents = documents.length
-        stats.financial_documents = documents.filter(isFinancialDocument).length
+            idPortal = resolvePortalId(body, me)
+            if (!idPortal) throw new Error('WINKER_PORTAL_NOT_FOUND')
 
-        const externalStats = await syncExternalRecords(adminClient, winker, condominioId, idPortal, now)
-        Object.assign(stats, externalStats)
+            portalName = resolvePortalName(me, idPortal)
+
+            await upsertConnection(adminClient, {
+                condominioId,
+                idPortal,
+                portalName,
+                usernameHint: maskIdentifier(credentials.username),
+                appKeyHint: maskAppKey(credentials.appKey),
+                baseUrl: credentials.baseUrl,
+                rawMe: me,
+                now,
+            })
+
+            const divisionsResult = await winker.get(`/division?id_portal=${idPortal}&with_units=1`)
+            const divisions = Array.isArray(divisionsResult?.body) ? divisionsResult.body : []
+            await upsertDivisionsAndUnits(adminClient, condominioId, idPortal, divisions, now)
+            stats.divisions = divisions.length
+            stats.units = divisions.reduce((sum: number, division: any) => sum + (Array.isArray(division.units) ? division.units.length : 0), 0)
+
+            const documents = await fetchAllDocuments(winker, idPortal, body.max_pages ?? 100)
+            await upsertDocuments(adminClient, condominioId, idPortal, documents, now)
+            stats.documents = documents.length
+            stats.financial_documents = documents.filter(isFinancialDocument).length
+
+            const externalStats = await syncExternalRecords(adminClient, winker, condominioId, idPortal, now)
+            Object.assign(stats, externalStats)
+        } else {
+            const web = new WinkerWebClient(
+                credentials.webBaseUrl,
+                credentials.username,
+                credentials.password,
+            )
+            const webResult = await syncWinkerWeb(adminClient, web, body, condominioId, now)
+            idPortal = webResult.idPortal
+            portalName = webResult.portalName
+            me = webResult.rawMe
+            loginBody = { name: portalName }
+            Object.assign(stats, webResult.stats)
+
+            await upsertConnection(adminClient, {
+                condominioId,
+                idPortal,
+                portalName,
+                usernameHint: maskIdentifier(credentials.username),
+                appKeyHint: '',
+                baseUrl: credentials.webBaseUrl,
+                rawMe: me,
+                now,
+            })
+        }
 
         await adminClient
             .from('winker_sync_runs')
@@ -189,9 +382,21 @@ serve(async (req) => {
             })
             .eq('condominio_id', condominioId)
 
+        console.log(JSON.stringify({
+            fn: 'sync-winker',
+            status: 'success',
+            correlation_id: correlationId,
+            condominio_id: condominioId,
+            integration_mode: integrationMode,
+            id_portal: idPortal,
+            stats,
+        }))
+
         return jsonResponse({
             success: true,
+            correlation_id: correlationId,
             condominio_id: condominioId,
+            integration_mode: integrationMode,
             id_portal: idPortal,
             portal_name: portalName,
             winker_user: {
@@ -203,6 +408,7 @@ serve(async (req) => {
     } catch (err: any) {
         const message = err?.message || String(err)
         const finishedAt = new Date().toISOString()
+        const errorCode = message.split(/\s|:/)[0].slice(0, 80) || 'WINKER_SYNC_FAILED'
 
         if (adminClient && syncRunId) {
             await adminClient
@@ -229,14 +435,30 @@ serve(async (req) => {
                 .eq('condominio_id', condominioId)
         }
 
-        return jsonResponse({ success: false, error: message }, 500)
+        console.error(JSON.stringify({
+            fn: 'sync-winker',
+            status: 'error',
+            correlation_id: correlationId,
+            condominio_id: condominioId,
+            id_portal: idPortal,
+            error_class: errorCode,
+        }))
+
+    const status = errorCode === 'AUTH_REQUIRED'
+        ? 401
+        : errorCode === 'PROFILE_NOT_FOUND' || errorCode === 'FORBIDDEN_CONDO'
+            ? 403
+            : errorCode === 'CONDOMINIO_ID_REQUIRED' || errorCode === 'WINKER_CREDENTIALS_REQUIRED' || errorCode === 'WINKER_REST_APP_KEY_REQUIRED'
+                ? 400
+                : 500
+    return jsonResponse({ success: false, error: errorCode, correlation_id: correlationId }, status)
     }
 })
 
 async function getRequestContext(req: Request): Promise<RequestContext> {
     const adminClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        getSupabaseSecretKey(),
     )
 
     const syncSecret = Deno.env.get('SYNC_WINKER_SECRET')
@@ -254,7 +476,7 @@ async function getRequestContext(req: Request): Promise<RequestContext> {
 
     const authClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_ANON_KEY')!,
+        getSupabasePublishableKey(),
         { global: { headers: { Authorization: authHeader } } },
     )
 
@@ -293,12 +515,24 @@ function resolveCredentials(body: SyncBody) {
     const password = body.password || Deno.env.get('WINKER_PASSWORD')
     const appKey = String(body.key || body.app_key || Deno.env.get('WINKER_APP_KEY') || '')
     const baseUrl = Deno.env.get('WINKER_BASE_URL') || WINKER_BASE_URL
+    const webBaseUrl = Deno.env.get('WINKER_WEB_BASE_URL') || WINKER_WEB_BASE_URL
 
-    if (!username || !password || !appKey) {
+    if (!username || !password) {
         throw new Error('WINKER_CREDENTIALS_REQUIRED')
     }
 
-    return { username, password, appKey, baseUrl }
+    return { username, password, appKey, baseUrl, webBaseUrl }
+}
+
+function resolveIntegrationMode(appKey: string): WinkerIntegrationMode {
+    const configuredMode = (Deno.env.get('WINKER_INTEGRATION_MODE') || 'web').trim().toLowerCase()
+    if (configuredMode !== 'web' && configuredMode !== 'rest') {
+        throw new Error('WINKER_INTEGRATION_MODE_INVALID')
+    }
+    if (configuredMode === 'rest' && !appKey) {
+        throw new Error('WINKER_REST_APP_KEY_REQUIRED')
+    }
+    return configuredMode
 }
 
 function resolvePortalId(body: SyncBody, me: any) {
@@ -346,7 +580,7 @@ async function fetchAllDocuments(winker: WinkerClient, idPortal: number, maxPage
 
 async function upsertConnection(adminClient: any, input: {
     condominioId: string
-    idPortal: number
+    idPortal: number | null
     portalName: string | null
     usernameHint: string
     appKeyHint: string
@@ -417,7 +651,7 @@ async function upsertDivisionsAndUnits(adminClient: any, condominioId: string, i
     }
 }
 
-async function upsertDocuments(adminClient: any, condominioId: string, idPortal: number, documents: any[], now: string) {
+async function upsertDocuments(adminClient: any, condominioId: string, idPortal: number | null, documents: any[], now: string) {
     const rows = documents
         .filter((document) => document?.id_document)
         .map((document) => ({
@@ -451,6 +685,288 @@ async function upsertDocuments(adminClient: any, condominioId: string, idPortal:
         .upsert(rows, { onConflict: 'condominio_id,id_document' })
 
     if (error) throw error
+}
+
+type WebDocument = {
+    id_document: string
+    id_document_type: string | null
+    type: string | null
+    name: string
+    description: string | null
+    document_date: string | null
+    created: string | null
+    file: {
+        uuid: null
+        original_name: string
+        type: string
+        size: null
+    }
+    app_download_path: string
+    raw: Record<string, unknown>
+}
+
+function cleanWebText(value: string) {
+    return value
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&#39;/gi, "'")
+        .replace(/&quot;/gi, '"')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function decodeWebUrl(value: string) {
+    try {
+        return decodeURIComponent(value)
+    } catch (_err) {
+        return value
+    }
+}
+
+function parseWebCategories(html: string) {
+    const categories = new Map<string, { id: string; label: string; href: string }>()
+    for (const match of html.matchAll(/href=["']([^"']*id_documento_tipo[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+        const href = match[1]
+        const decodedHref = decodeWebUrl(href)
+        const idMatch = decodedHref.match(/id_documento_tipo(?:\]|\/)?\s*=?\s*(\d+)/i)
+        if (!idMatch) continue
+        const label = cleanWebText(match[2])
+        if (!label) continue
+        categories.set(idMatch[1], { id: idMatch[1], label, href })
+    }
+    return [...categories.values()]
+}
+
+function slugifyWebFileName(value: string) {
+    return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 100) || 'documento'
+}
+
+function parseWebDocuments(html: string, category: { id: string; label: string }) {
+    const documents: WebDocument[] = []
+    for (const match of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+        const row = match[1]
+        const downloadMatch = row.match(/href=["']([^"']*\/documento\/download\/id\/(\d+)[^"']*)["']/i)
+        if (!downloadMatch) continue
+
+        const viewMatch = row.match(/href=["']([^"']*\/documento\/view\/id\/\d+[^"']*)["'][^>]*>([\s\S]*?)<\/a>/i)
+        const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => cleanWebText(cell[1]))
+        const idDocument = downloadMatch[2]
+        const name = cleanWebText(viewMatch?.[2] || cells[1] || `Documento ${idDocument}`)
+
+        documents.push({
+            id_document: idDocument,
+            id_document_type: category.id,
+            type: cells[0] || category.label,
+            name,
+            description: null,
+            document_date: cells[3] || null,
+            created: cells[2] || null,
+            file: {
+                uuid: null,
+                original_name: `${slugifyWebFileName(name)}-${idDocument}`,
+                type: 'application/octet-stream',
+                size: null,
+            },
+            app_download_path: decodeWebUrl(downloadMatch[1]),
+            raw: {
+                source: 'winker_web',
+                category_id: category.id,
+                category_label: category.label,
+                app_view_path: viewMatch?.[1] ? decodeWebUrl(viewMatch[1]) : null,
+                app_download_path: decodeWebUrl(downloadMatch[1]),
+            },
+        })
+    }
+    return documents
+}
+
+function nextWebPage(html: string, currentPage: number) {
+    const candidates = [...html.matchAll(/href=["']([^"']*Documento_page\/(\d+)[^"']*)["']/gi)]
+        .map((match) => ({ href: decodeWebUrl(match[1]), page: Number(match[2]) }))
+        .filter((candidate) => candidate.page > currentPage)
+        .sort((a, b) => a.page - b.page)
+    return candidates[0] || null
+}
+
+function parseWebPortalName(html: string) {
+    const heading = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)
+    return heading ? cleanWebText(heading[1]) || null : null
+}
+
+async function resolveWebPortalId(adminClient: any, condominioId: string, body: SyncBody) {
+    if (body.id_portal) return Number(body.id_portal)
+    const configured = Deno.env.get('WINKER_PORTAL_ID')
+    if (configured) return Number(configured)
+
+    const { data, error } = await adminClient
+        .from('winker_connections')
+        .select('id_portal')
+        .eq('condominio_id', condominioId)
+        .maybeSingle()
+    if (error) throw error
+    return data?.id_portal ? Number(data.id_portal) : null
+}
+
+async function ensureWinkerStorageBucket(adminClient: any) {
+    const { error } = await adminClient.storage.createBucket(WINKER_STORAGE_BUCKET, { public: false })
+    if (error && !/already exists|duplicate/i.test(error.message || '')) throw error
+}
+
+async function markWebDocumentStorage(adminClient: any, condominioId: string, documentId: string, storagePath: string | null, status: string, now: string, errorClass: string | null = null, contentType: string | null = null, fileSizeBytes: number | null = null, fileName: string | null = null) {
+    const storagePatch: Record<string, unknown> = {
+        storage_bucket: WINKER_STORAGE_BUCKET,
+        storage_path: storagePath,
+        storage_status: status,
+        storage_error: errorClass,
+        storage_uploaded_at: status === 'available' ? now : null,
+    }
+    if (contentType) storagePatch.file_mime_type = contentType
+    if (fileSizeBytes != null) storagePatch.file_size_bytes = fileSizeBytes
+    if (fileName) storagePatch.file_name = fileName
+    const { error } = await adminClient
+        .from('winker_documents')
+        .update(storagePatch)
+        .eq('condominio_id', condominioId)
+        .eq('id_document', documentId)
+
+    if (!error) return
+    if (!/storage_|schema cache|does not exist/i.test(error.message || '')) throw error
+
+    const { data: current, error: readError } = await adminClient
+        .from('winker_documents')
+        .select('raw')
+        .eq('condominio_id', condominioId)
+        .eq('id_document', documentId)
+        .maybeSingle()
+    if (readError) throw readError
+
+    const { error: rawError } = await adminClient
+        .from('winker_documents')
+        .update({
+            raw: {
+                ...(current?.raw || {}),
+                storage: { ...storagePatch },
+            },
+        })
+        .eq('condominio_id', condominioId)
+        .eq('id_document', documentId)
+    if (rawError) throw rawError
+}
+
+async function fetchAllWebDocuments(web: WinkerWebClient, maxPages: number) {
+    const homeHtml = await web.html('/intra/meuCondominio/documento')
+    const categories = parseWebCategories(homeHtml)
+    if (categories.length === 0) throw new Error('WINKER_WEB_DOCUMENT_CATEGORIES_EMPTY')
+
+    const documents: WebDocument[] = []
+    for (const category of categories) {
+        let path = category.href
+        let page = 1
+        while (page <= maxPages) {
+            const html = await web.html(path)
+            documents.push(...parseWebDocuments(html, category))
+            const next = nextWebPage(html, page)
+            if (!next) break
+            path = next.href
+            page = next.page
+        }
+    }
+
+    const unique = new Map(documents.map((document) => [document.id_document, document]))
+    return {
+        homeHtml,
+        categories,
+        documents: [...unique.values()],
+    }
+}
+
+async function runWinkerWebStage<T>(stage: string, operation: () => Promise<T>) {
+    try {
+        return await operation()
+    } catch (err: any) {
+        const errorClass = String(err?.message || err?.code || err?.name || (err == null ? 'NULL' : typeof err)).split(/\s|:/)[0].slice(0, 60) || 'UNKNOWN'
+        throw new Error(`WINKER_WEB_STAGE_${stage}_${errorClass}`)
+    }
+}
+
+async function syncOneWinkerWebDocument(adminClient: any, web: WinkerWebClient, document: WebDocument, condominioId: string, now: string) {
+    try {
+        const file = await runWinkerWebStage('file', () => web.file(document.app_download_path))
+        const storagePath = `${condominioId}/${document.id_document}.${file.extension}`
+        const baseName = (document.file.original_name || document.name || document.id_document).replace(/\.[a-z0-9]{1,8}$/i, '')
+        const fileName = `${baseName}.${file.extension}`
+        const { error: uploadError } = await runWinkerWebStage('upload', () => adminClient.storage
+            .from(WINKER_STORAGE_BUCKET)
+            .upload(storagePath, new Blob([file.bytes], { type: file.contentType }), {
+                contentType: file.contentType,
+                upsert: true,
+            }))
+        if (uploadError) throw uploadError
+
+        await runWinkerWebStage('mark', () => markWebDocumentStorage(adminClient, condominioId, document.id_document, storagePath, 'available', now, null, file.contentType, file.bytes.byteLength, fileName))
+        return true
+    } catch (err: any) {
+        const errorClass = String(err?.message || err).split(/\s|:/)[0].slice(0, 80)
+        console.error(JSON.stringify({
+            fn: 'syncWinkerWeb',
+            status: 'document_error',
+            condominio_id: condominioId,
+            external_id: document.id_document,
+            error_class: errorClass,
+        }))
+        try {
+            await markWebDocumentStorage(adminClient, condominioId, document.id_document, null, 'error', now, errorClass)
+        } catch (_statusError) {
+            // Preserve the download failure as the decisive signal.
+        }
+        return false
+    }
+}
+
+async function syncWinkerWeb(adminClient: any, web: WinkerWebClient, body: SyncBody, condominioId: string, now: string) {
+    await runWinkerWebStage('login', () => web.login())
+    const result = await runWinkerWebStage('list', () => fetchAllWebDocuments(web, body.max_pages ?? 100))
+    const idPortal = await runWinkerWebStage('portal', () => resolveWebPortalId(adminClient, condominioId, body))
+    const portalName = parseWebPortalName(result.homeHtml)
+    await runWinkerWebStage('bucket', () => ensureWinkerStorageBucket(adminClient))
+    await runWinkerWebStage('metadata', () => upsertDocuments(adminClient, condominioId, idPortal, result.documents, now))
+
+    let downloaded = 0
+    let downloadErrors = 0
+    const concurrency = Math.max(1, Math.min(8, Number(Deno.env.get('WINKER_WEB_CONCURRENCY') || 6)))
+    for (let index = 0; index < result.documents.length; index += concurrency) {
+        const batch = result.documents.slice(index, index + concurrency)
+        const outcomes = await Promise.all(batch.map((document) => syncOneWinkerWebDocument(adminClient, web, document, condominioId, now)))
+        downloaded += outcomes.filter(Boolean).length
+        downloadErrors += outcomes.filter((outcome) => !outcome).length
+    }
+
+    if (downloadErrors > 0) throw new Error(`WINKER_WEB_DOCUMENT_DOWNLOAD_ERRORS ${downloadErrors}`)
+
+    return {
+        idPortal,
+        portalName,
+        rawMe: {
+            source: 'winker_web',
+            portal_name: portalName,
+            categories: result.categories.map((category) => ({ id: category.id, label: category.label })),
+        },
+        stats: {
+            web_categories: result.categories.length,
+            web_documents: result.documents.length,
+            web_documents_downloaded: downloaded,
+            web_documents_download_errors: downloadErrors,
+            web_financial_documents: result.documents.filter(isFinancialDocument).length,
+        },
+    }
 }
 
 async function syncExternalRecords(adminClient: any, winker: WinkerClient, condominioId: string, idPortal: number, now: string) {

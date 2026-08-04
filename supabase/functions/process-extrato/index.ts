@@ -10,6 +10,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { StatementParser } from "../_shared/statement-parser.ts";
+import { getSupabasePublishableKey, getSupabaseSecretKey } from "../_shared/supabase-keys.ts";
 
 declare const Deno: any;
 
@@ -26,7 +27,7 @@ async function getAuthenticatedProfile(req: Request) {
 
     const authClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_ANON_KEY')!,
+        getSupabasePublishableKey(),
         { global: { headers: { Authorization: authHeader } } }
     );
 
@@ -37,7 +38,7 @@ async function getAuthenticatedProfile(req: Request) {
 
     const adminClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        getSupabaseSecretKey()
     );
 
     const { data: perfil, error: perfilError } = await adminClient
@@ -143,6 +144,8 @@ serve(async (req: Request) => {
         return new Response('ok', { headers: corsHeaders });
     }
 
+    const correlationId = crypto.randomUUID();
+
     try {
         const formData = await req.formData();
         const file = formData.get('file') as File;
@@ -234,6 +237,26 @@ serve(async (req: Request) => {
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
+        const { data: existingExtrato, error: existingExtratoError } = await adminClient
+            .from('extratos_bancarios')
+            .select('id, status')
+            .eq('condominio_id', condominioId)
+            .eq('arquivo_hash', fileHash)
+            .maybeSingle();
+
+        if (existingExtratoError) throw existingExtratoError;
+        if (existingExtrato) {
+            return new Response(
+                JSON.stringify({
+                    id: existingExtrato.id,
+                    status: 'ja_importado',
+                    transacoes: { total: 0, inseridas: 0, lista: [] },
+                    processamento: { metodo, tokens_usados: resultado.tokens_used },
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
         // Inserir extrato
         const extratoId = crypto.randomUUID();
         const timestamp = new Date().toISOString();
@@ -260,9 +283,10 @@ serve(async (req: Request) => {
             condominio_id: condominioId,
             extrato_id: extratoId,
             data_transacao: tx.data,
-            descricao: tx.descricao,
+            descricao: tx.descricao || 'Transação importada sem descrição',
             valor: Math.abs(tx.valor),
-            type: tx.tipo,
+            tipo: String(tx.tipo).toUpperCase().startsWith('C') ? 'CREDIT' : 'DEBIT',
+            type: String(tx.tipo).toUpperCase().startsWith('C') ? 'CREDIT' : 'DEBIT',
             conciliado: false
         }));
 
@@ -275,7 +299,17 @@ serve(async (req: Request) => {
             if (!txError) {
                 transacoesInseridas = transacoesParaInserir.length;
             } else {
-                console.error("Erro ao inserir transações:", txError);
+                console.error(JSON.stringify({
+                    fn: 'process-extrato',
+                    status: 'error',
+                    stage: 'insert-transacoes',
+                    error: txError,
+                    condominio_id: condominioId,
+                    extrato_id: extratoId,
+                    attempted_count: transacoesParaInserir.length,
+                }));
+                await adminClient.from('extratos_bancarios').delete().eq('id', extratoId);
+                throw new Error('TRANSACTIONS_PERSIST_FAILED');
             }
         }
 
@@ -300,10 +334,10 @@ serve(async (req: Request) => {
 
                 resumo: {
                     total_creditos: resultado.transacoes
-                        .filter((t: any) => t.tipo === 'CREDIT')
+                        .filter((t: any) => String(t.tipo).toUpperCase().startsWith('C'))
                         .reduce((sum: number, t: any) => sum + Math.abs(t.valor), 0),
                     total_debitos: resultado.transacoes
-                        .filter((t: any) => t.tipo === 'DEBIT')
+                        .filter((t: any) => !String(t.tipo).toUpperCase().startsWith('C'))
                         .reduce((sum: number, t: any) => sum + Math.abs(t.valor), 0)
                 },
 
@@ -329,16 +363,28 @@ serve(async (req: Request) => {
         );
 
     } catch (error: any) {
-        console.error('❌ Erro:', error);
         const message = error?.message || 'Erro interno';
+        const invalidFormData = message.includes('Body can not be decoded as form data');
+        const errorClass = invalidFormData
+            ? 'INVALID_MULTIPART_BODY'
+            : /^[A-Z0-9_]+$/.test(message)
+                ? message.slice(0, 80)
+                : 'EXTRATO_PROCESSING_FAILED';
         const status =
             message === 'AUTH_REQUIRED' ? 401 :
             message === 'PROFILE_NOT_FOUND' ? 403 :
+            invalidFormData || message === 'Arquivo não enviado' || message === 'condominio_id é obrigatório' ? 400 :
             500;
+        console.error(JSON.stringify({
+            fn: 'process-extrato',
+            status: 'error',
+            correlation_id: correlationId,
+            error_class: errorClass,
+        }));
         return new Response(
             JSON.stringify({
-                error: message,
-                stack: error?.stack
+                error: errorClass,
+                correlation_id: correlationId,
             }),
             { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

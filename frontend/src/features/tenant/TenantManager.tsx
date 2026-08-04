@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
     Users, Plus, Edit3, ChevronRight,
     Loader2, Search, X, Save,
-    UserCheck, UserX
+    UserCheck, UserX, ShieldAlert
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -152,7 +152,7 @@ export function TenantManager() {
     const scoreColor = (s: number | null) =>
         !s || s < 30 ? 'text-emerald-600' : s < 60 ? 'text-amber-600' : 'text-rose-600'
 
-    const tipoLabel = { proprietario: '🏠 Proprietário', inquilino: '🔑 Inquilino', responsavel: '👤 Responsável' }
+    const tipoLabel = { proprietario: 'Proprietário', inquilino: 'Inquilino', responsavel: 'Responsável' }
 
     return (
         <div className="space-y-6">
@@ -212,9 +212,9 @@ export function TenantManager() {
                                 <label className="block text-xs font-bold text-slate-600 mb-1">Tipo</label>
                                 <select value={form.tipo} onChange={e => setForm(prev => ({ ...prev, tipo: e.target.value as any }))}
                                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                                    <option value="inquilino">🔑 Inquilino</option>
-                                    <option value="proprietario">🏠 Proprietário</option>
-                                    <option value="responsavel">👤 Responsável</option>
+                                    <option value="inquilino">Inquilino</option>
+                                    <option value="proprietario">Proprietário</option>
+                                    <option value="responsavel">Responsável</option>
                                 </select>
                             </div>
 
@@ -290,8 +290,9 @@ export function TenantManager() {
                                                 <span className="font-bold text-slate-900 truncate">{m.nome}</span>
                                                 {!m.ativo && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold uppercase">Inativo</span>}
                                                 {m.comprovantes_suspeitos > 0 && (
-                                                    <span className="text-[10px] bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full font-bold">
-                                                        🚨 {m.comprovantes_suspeitos} suspeito{m.comprovantes_suspeitos > 1 ? 's' : ''}
+                                                    <span className="inline-flex items-center gap-1 text-[10px] bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full font-bold">
+                                                        <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+                                                        {m.comprovantes_suspeitos} suspeito{m.comprovantes_suspeitos > 1 ? 's' : ''}
                                                     </span>
                                                 )}
                                             </div>

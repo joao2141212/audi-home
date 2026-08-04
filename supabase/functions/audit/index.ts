@@ -11,6 +11,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { CNPJService } from "../_shared/cnpj-service.ts";
 import { RobustValidator } from "../_shared/robust-validator.ts";
 import { AuditLogService } from "../_shared/audit-log-service.ts";
+import { getSupabaseSecretKey } from "../_shared/supabase-keys.ts";
 
 declare const Deno: any;
 
@@ -26,7 +27,7 @@ serve(async (req: Request) => {
 
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabaseKey = getSupabaseSecretKey();
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const url = new URL(req.url);

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getSupabasePublishableKey, getSupabaseSecretKey } from '../_shared/supabase-keys.ts'
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -23,7 +24,7 @@ serve(async (req) => {
         const authHeader = req.headers.get('Authorization')
         const userSupabase = createClient(
             Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_ANON_KEY')!,
+            getSupabasePublishableKey(),
             { global: { headers: { Authorization: authHeader ?? '' } } }
         )
         const { data: { user: caller }, error: authErr } = await userSupabase.auth.getUser()
@@ -36,7 +37,7 @@ serve(async (req) => {
         // Check if caller is master
         const adminClient = createClient(
             Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+            getSupabaseSecretKey()
         )
         const { data: perfil, error: perfilErr } = await adminClient
             .from('perfis')

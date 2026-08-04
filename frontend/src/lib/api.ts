@@ -60,7 +60,10 @@ export const api = {
             .order('data_transacao', { ascending: false })
 
         if (error) throw error
-        return data
+        return (data || []).map((transaction: any) => ({
+            ...transaction,
+            type: transaction.type || transaction.tipo,
+        }))
     },
 
     // 2. COMPROVANTES E RECONCILIAÇÃO
@@ -117,38 +120,44 @@ export const api = {
                 valor: i.valor,
                 data: i.data_emissao,
                 unidade: i.fornecedores?.razao_social || 'Fornecedor Desconhecido',
+                descricao: i.descricao || null,
+                arquivo_nome: i.arquivo_nome || null,
+                arquivo_url: i.arquivo_url || null,
                 status: i.status_auditoria,
                 ocrConfianca: 100
             }))
         }
     },
 
-    async getReconciliationMatches(condominio_id: string, valor: number) {
+    async getReconciliationMatches(condominio_id: string, valor: number, dataTransacao?: string) {
         // Usa a RPC que criamos no banco
-        const { data, error } = await supabase.rpc('find_reconciliation_matches', {
+        const { data: matchesData, error } = await supabase.rpc('find_reconciliation_matches', {
             p_condominio_id: condominio_id,
-            p_valor: valor
+            p_amount: valor,
+            p_date: dataTransacao || new Date().toISOString().slice(0, 10),
+            p_tolerance_days: 5
         })
 
         if (error) throw error
         return {
-            matches: (data || []).map((m: any) => ({
+            matches: (matchesData || []).map((m: any) => ({
                 id: m.id,
                 valor: m.valor,
                 data: m.data_transacao,
                 descricao: m.descricao,
-                matchScore: m.score,
+                matchScore: Number(m.match_score) || 0,
                 matchReasons: ['Valor exato', 'Data aproximada']
             }))
         }
     },
 
-    async approveReconciliation(receiptId: string, transactionId: string) {
+    async approveReconciliation(receiptId: string, transactionId: string, condominio_id: string) {
         // 1. Atualizar transação para conciliada
         const { error: txError } = await supabase
             .from('transacoes_bancarias')
             .update({ conciliado: true })
             .eq('id', transactionId)
+            .eq('condominio_id', condominio_id)
 
         if (txError) throw txError
 
@@ -157,6 +166,7 @@ export const api = {
             .from('comprovantes')
             .update({ transacao_id: transactionId, status_auditoria: 'auditado' })
             .eq('id', receiptId)
+            .eq('condominio_id', condominio_id)
 
         if (compError) throw compError
 
@@ -278,16 +288,80 @@ export const api = {
     },
 
     async getBoletos(condominio_id: string) {
-        // Retorna transações de crédito como "boletos" recebidos
         const { data, error } = await supabase
-            .from('transacoes_bancarias')
+            .from('boletos_emitidos')
             .select('*')
             .eq('condominio_id', condominio_id)
-            .eq('type', 'CREDIT')
-            .order('data_transacao', { ascending: false })
+            .order('vencimento', { ascending: false })
 
         if (error) throw error
         return data || []
+    },
+
+    async saveBoleto(data: {
+        condominio_id: string,
+        pagador: string,
+        valor: number,
+        vencimento: string,
+        status?: string,
+        data_pagamento?: string | null,
+        transacao_id?: string | null,
+        beneficiario?: string | null,
+        linha_digitavel?: string | null,
+        arquivo_url?: string | null,
+        arquivo_nome?: string | null,
+        arquivo_tipo?: string | null,
+    }) {
+        const { data: boleto, error } = await supabase
+            .from('boletos_emitidos')
+            .insert({ ...data, status: data.status || 'aberto' })
+            .select()
+            .single()
+
+        if (error) throw error
+        return boleto
+    },
+
+    async linkBoletoTransaction(id: string, condominio_id: string, transacao_id: string, data_pagamento: string | null) {
+        const { data, error } = await supabase
+            .from('boletos_emitidos')
+            .update({
+                transacao_id,
+                data_pagamento,
+                status: 'pago',
+            })
+            .eq('id', id)
+            .eq('condominio_id', condominio_id)
+            .select()
+            .single()
+
+        if (error) throw error
+        return data
+    },
+
+    async uploadBoletoFile(storagePath: string, file: File) {
+        const { error } = await supabase.storage
+            .from('comprovantes')
+            .upload(storagePath, file, { contentType: file.type || undefined, upsert: false })
+
+        if (error) throw error
+    },
+
+    async removeBoletoFile(storagePath: string) {
+        const { error } = await supabase.storage
+            .from('comprovantes')
+            .remove([storagePath])
+
+        if (error) throw error
+    },
+
+    async getBoletoFileUrl(storagePath: string) {
+        const { data, error } = await supabase.storage
+            .from('comprovantes')
+            .createSignedUrl(storagePath, 300)
+
+        if (error) throw error
+        return data.signedUrl
     },
 
     async getReserveMovimentacoes(condominio_id: string) {

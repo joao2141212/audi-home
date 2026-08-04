@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
     ShieldAlert, ShieldCheck, AlertTriangle, CheckCircle2, XCircle,
     MessageSquare, ChevronDown, ChevronUp, Clock, Loader2, RefreshCw,
-    FileText, Building2, Calendar, DollarSign, Fingerprint
+    FileText, Building2, Calendar, DollarSign, Fingerprint, Download, Eye, X, ArrowLeft
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -12,6 +12,8 @@ interface QueueItem {
     id: string
     condominio_id: string
     arquivo_nome: string
+    arquivo_url: string | null
+    tipo_arquivo: string | null
     valor: number | null
     data_emissao: string | null
     status_auditoria: string
@@ -38,7 +40,12 @@ const FLAG_LABELS: Record<string, { label: string; color: string }> = {
     DOCUMENTO_INVALIDO:   { label: 'Doc Inválido', color: 'bg-rose-100 text-rose-700' },
 }
 
-export function ApprovalQueue() {
+interface ApprovalQueueProps {
+    initialItemId?: string | null
+    onBackToHistory?: () => void
+}
+
+export function ApprovalQueue({ initialItemId, onBackToHistory }: ApprovalQueueProps) {
     const { user } = useAuth()
     const [items, setItems] = useState<QueueItem[]>([])
     const [loading, setLoading] = useState(true)
@@ -47,6 +54,9 @@ export function ApprovalQueue() {
     const [motivos, setMotivos] = useState<Record<string, string>>({})
     const [filter, setFilter] = useState<'todos' | 'suspeito' | 'alerta' | 'pendente'>('todos')
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+    const [previewItem, setPreviewItem] = useState<QueueItem | null>(null)
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+    const [previewLoading, setPreviewLoading] = useState(false)
 
     const showToast = (msg: string, type: 'success' | 'error') => {
         setToast({ msg, type })
@@ -71,13 +81,35 @@ export function ApprovalQueue() {
 
             const { data, error } = await query.limit(50)
             if (error) throw error
-            setItems((data || []) as QueueItem[])
+
+            const queueItems = (data || []) as QueueItem[]
+            if (initialItemId && !queueItems.some(item => item.id === initialItemId)) {
+                const { data: selectedItem, error: selectedItemError } = await supabase
+                    .from('comprovantes')
+                    .select('*')
+                    .eq('id', initialItemId)
+                    .maybeSingle()
+
+                if (selectedItemError) throw selectedItemError
+                if (selectedItem && (user.role === 'master' || selectedItem.condominio_id === user.condominio_id)) {
+                    queueItems.unshift(selectedItem as QueueItem)
+                }
+            }
+
+            setItems(queueItems)
         } catch (err: any) {
             showToast(`Erro ao carregar fila: ${err.message}`, 'error')
         } finally {
             setLoading(false)
         }
     }, [user, filter])
+
+    useEffect(() => {
+        if (initialItemId) {
+            setFilter('todos')
+            setExpanded(initialItemId)
+        }
+    }, [initialItemId])
 
     useEffect(() => { load() }, [load])
 
@@ -86,6 +118,10 @@ export function ApprovalQueue() {
         acao: 'aprovado' | 'rejeitado' | 'solicitado_esclarecimento'
     ) => {
         const motivo = motivos[item.id] || ''
+        if (acao === 'aprovado' && !item.arquivo_url) {
+            showToast('Não é possível aprovar sem visualizar o arquivo original.', 'error')
+            return
+        }
         if (acao === 'rejeitado' && !motivo.trim()) {
             showToast('Informe o motivo da rejeição antes de confirmar.', 'error')
             return
@@ -122,12 +158,14 @@ export function ApprovalQueue() {
             if (updateError) throw updateError
 
             const msgs: Record<string, string> = {
-                aprovado: '✅ Comprovante aprovado e registrado no audit log.',
-                rejeitado: '❌ Comprovante rejeitado com motivo registrado.',
-                solicitado_esclarecimento: '📨 Esclarecimento solicitado ao síndico.'
+                aprovado: 'Comprovante aprovado e registrado no audit log.',
+                rejeitado: 'Comprovante rejeitado com motivo registrado.',
+                solicitado_esclarecimento: 'Esclarecimento solicitado ao síndico.'
             }
             showToast(msgs[acao], 'success')
             setExpanded(null)
+            setPreviewItem(null)
+            setPreviewUrl(null)
             setMotivos(prev => { const n = { ...prev }; delete n[item.id]; return n })
             await load()
         } catch (err: any) {
@@ -135,6 +173,41 @@ export function ApprovalQueue() {
         } finally {
             setActionLoading(null)
         }
+    }
+
+    const openDocumentPreview = async (item: QueueItem, event?: React.MouseEvent) => {
+        event?.stopPropagation()
+        setPreviewItem(item)
+        setPreviewUrl(null)
+        setPreviewLoading(true)
+
+        if (!item.arquivo_url) {
+            setPreviewLoading(false)
+            return
+        }
+
+        try {
+            if (item.arquivo_url.startsWith('http://') || item.arquivo_url.startsWith('https://')) {
+                setPreviewUrl(item.arquivo_url)
+            } else {
+                const { data, error } = await supabase.storage
+                    .from('comprovantes')
+                    .createSignedUrl(item.arquivo_url, 300)
+                if (error) throw error
+                setPreviewUrl(data.signedUrl)
+            }
+        } catch (err: any) {
+            showToast(`Não foi possível abrir o comprovante: ${err.message}`, 'error')
+        } finally {
+            setPreviewLoading(false)
+        }
+    }
+
+    const previewKind = (item: QueueItem) => {
+        const hint = `${item.tipo_arquivo || ''} ${item.arquivo_nome || ''} ${item.arquivo_url || ''}`.toLowerCase()
+        if (hint.includes('pdf') || /\.pdf(?:$|[?#])/.test(hint)) return 'pdf'
+        if (hint.includes('image/') || /\.(png|jpe?g|webp|gif|bmp|heic)(?:$|[?#])/.test(hint)) return 'image'
+        return 'other'
     }
 
     const fmt = (v: number) =>
@@ -149,6 +222,8 @@ export function ApprovalQueue() {
     const statusIcon = (s: string) => {
         if (s === 'suspeito') return <ShieldAlert className="h-4 w-4 text-rose-500" />
         if (s === 'alerta') return <AlertTriangle className="h-4 w-4 text-amber-500" />
+        if (s === 'auditado') return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        if (s === 'rejeitado') return <XCircle className="h-4 w-4 text-rose-500" />
         return <Clock className="h-4 w-4 text-slate-400" />
     }
 
@@ -171,46 +246,64 @@ export function ApprovalQueue() {
             )}
 
             {/* Header */}
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-black text-slate-900">Fila de Revisão Humana</h2>
                     <p className="text-slate-500 text-sm mt-1">
                         Documentos com irregularidades detectadas pela IA aguardam sua decisão.
                     </p>
                 </div>
-                <button onClick={load} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                    <RefreshCw className={cn("h-4 w-4 text-slate-400", loading && "animate-spin")} />
-                </button>
+                <div className="flex items-center gap-2">
+                    {onBackToHistory && (
+                        <button
+                            type="button"
+                            onClick={onBackToHistory}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                            <span className="hidden sm:inline">Voltar ao histórico</span>
+                        </button>
+                    )}
+                    <button onClick={load} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                        <RefreshCw className={cn("h-4 w-4 text-slate-400", loading && "animate-spin")} />
+                    </button>
+                </div>
             </div>
 
             {/* Filter tabs */}
             <div className="flex gap-2 flex-wrap">
                 {([
-                    { key: 'todos', label: 'Todos', count: items.length },
-                    { key: 'suspeito', label: '🚨 Suspeitos', count: counts.suspeito },
-                    { key: 'alerta', label: '⚠️ Alertas', count: counts.alerta },
-                    { key: 'pendente', label: '🕐 Pendentes', count: counts.pendente },
+                    { key: 'todos', label: 'Todos', icon: FileText, count: items.length },
+                    { key: 'suspeito', label: 'Suspeitos', icon: ShieldAlert, count: counts.suspeito },
+                    { key: 'alerta', label: 'Alertas', icon: AlertTriangle, count: counts.alerta },
+                    { key: 'pendente', label: 'Pendentes', icon: Clock, count: counts.pendente },
                 ] as const).map(tab => (
-                    <button
-                        key={tab.key}
-                        onClick={() => setFilter(tab.key)}
-                        className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-bold border transition-all",
-                            filter === tab.key
-                                ? "bg-indigo-600 text-white border-indigo-600"
-                                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                        )}
-                    >
-                        {tab.label}
-                        {tab.count > 0 && (
-                            <span className={cn(
-                                "ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-black",
-                                filter === tab.key ? "bg-indigo-500 text-white" : "bg-slate-100 text-slate-600"
-                            )}>
-                                {tab.count}
-                            </span>
-                        )}
-                    </button>
+                    (() => {
+                        const TabIcon = tab.icon
+                        return (
+                            <button
+                                key={tab.key}
+                                onClick={() => setFilter(tab.key)}
+                                className={cn(
+                                    "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all",
+                                    filter === tab.key
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                                )}
+                            >
+                                <TabIcon className="h-4 w-4" />
+                                <span>{tab.label}</span>
+                                {tab.count > 0 && (
+                                    <span className={cn(
+                                        "px-1.5 py-0.5 rounded-full text-[10px] font-black",
+                                        filter === tab.key ? "bg-indigo-500 text-white" : "bg-slate-100 text-slate-600"
+                                    )}>
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        )
+                    })()
                 ))}
             </div>
 
@@ -232,6 +325,7 @@ export function ApprovalQueue() {
                         const isExpanded = expanded === item.id
                         const isActing = actionLoading?.startsWith(item.id)
                         const flags = Array.isArray(item.fraud_flags) ? item.fraud_flags : []
+                        const isFinal = item.status_auditoria === 'auditado' || item.status_auditoria === 'rejeitado'
 
                         return (
                             <div key={item.id} className={cn(
@@ -243,9 +337,18 @@ export function ApprovalQueue() {
                                         : "border-slate-200"
                             )}>
                                 {/* Row Header */}
-                                <button
+                                <div
+                                    role="button"
+                                    tabIndex={0}
                                     className="w-full p-5 flex items-center gap-4 text-left"
                                     onClick={() => setExpanded(isExpanded ? null : item.id)}
+                                    onKeyDown={event => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault()
+                                            setExpanded(isExpanded ? null : item.id)
+                                        }
+                                    }}
+                                    aria-expanded={isExpanded}
                                 >
                                     {/* Score badge */}
                                     <div className={cn(
@@ -298,8 +401,19 @@ export function ApprovalQueue() {
                                         )}
                                     </div>
 
+                                    {item.arquivo_url && (
+                                        <button
+                                            type="button"
+                                            onClick={event => openDocumentPreview(item, event)}
+                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700 transition-colors hover:bg-indigo-100"
+                                            title="Visualizar comprovante"
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                            <span className="hidden sm:inline">Ver comprovante</span>
+                                        </button>
+                                    )}
                                     {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />}
-                                </button>
+                                </div>
 
                                 {/* Expanded Panel */}
                                 {isExpanded && (
@@ -317,6 +431,23 @@ export function ApprovalQueue() {
                                                     <p className="text-sm font-bold text-slate-900 truncate">{d.value}</p>
                                                 </div>
                                             ))}
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            {item.arquivo_url ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={event => openDocumentPreview(item, event)}
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-indigo-700"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                    Visualizar comprovante
+                                                </button>
+                                            ) : (
+                                                <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700">
+                                                    Arquivo original indisponível. A aprovação fica bloqueada.
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Description from OCR */}
@@ -342,10 +473,24 @@ export function ApprovalQueue() {
                                         </div>
 
                                         {/* Action buttons */}
+                                        {isFinal ? (
+                                            <div className={cn(
+                                                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold",
+                                                item.status_auditoria === 'auditado'
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : "bg-rose-50 text-rose-700"
+                                            )}>
+                                                {item.status_auditoria === 'auditado'
+                                                    ? <CheckCircle2 className="h-4 w-4" />
+                                                    : <XCircle className="h-4 w-4" />}
+                                                Este documento já foi {item.status_auditoria === 'auditado' ? 'aprovado' : 'rejeitado'}.
+                                            </div>
+                                        ) : (
                                         <div className="flex gap-3 flex-wrap">
                                             <button
                                                 onClick={() => takeAction(item, 'aprovado')}
-                                                disabled={!!isActing}
+                                                disabled={!!isActing || !item.arquivo_url}
+                                                title={!item.arquivo_url ? 'Visualize o arquivo original antes de aprovar' : 'Aprovar comprovante'}
                                                 className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                                             >
                                                 {actionLoading === item.id + 'aprovado'
@@ -374,11 +519,170 @@ export function ApprovalQueue() {
                                                 Rejeitar
                                             </button>
                                         </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         )
                     })}
+                </div>
+            )}
+
+            {previewItem && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                    role="presentation"
+                    onMouseDown={event => {
+                        if (event.target === event.currentTarget) {
+                            setPreviewItem(null)
+                            setPreviewUrl(null)
+                        }
+                    }}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="review-document-title"
+                        className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+                    >
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
+                            <div className="flex min-w-0 items-start gap-3">
+                                <div className="rounded-xl bg-indigo-50 p-2.5">
+                                    <FileText className="h-5 w-5 text-indigo-600" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-black uppercase tracking-wide text-indigo-500">Revisão do documento original</p>
+                                    <h3 id="review-document-title" className="mt-1 truncate text-lg font-black text-slate-900">{previewItem.arquivo_nome}</h3>
+                                    <p className="mt-1 text-xs text-slate-500">Confira a evidência antes de aprovar, pedir esclarecimento ou rejeitar.</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPreviewItem(null)
+                                    setPreviewUrl(null)
+                                }}
+                                aria-label="Fechar visualização"
+                                className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_330px]">
+                            <div className="flex min-h-[420px] items-center justify-center bg-slate-100 p-4 sm:p-6">
+                                {previewLoading ? (
+                                    <div className="flex flex-col items-center gap-3 text-sm text-slate-500">
+                                        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                                        Gerando visualização segura...
+                                    </div>
+                                ) : !previewUrl ? (
+                                    <div className="max-w-sm text-center">
+                                        <FileText className="mx-auto h-12 w-12 text-slate-300" />
+                                        <p className="mt-3 font-bold text-slate-700">Arquivo original indisponível</p>
+                                        <p className="mt-1 text-sm text-slate-500">Não é possível tomar uma decisão de aprovação sem a evidência.</p>
+                                    </div>
+                                ) : previewKind(previewItem) === 'pdf' ? (
+                                    <iframe
+                                        title={`Visualização de ${previewItem.arquivo_nome}`}
+                                        src={previewUrl}
+                                        className="h-[65vh] min-h-[420px] w-full rounded-2xl border border-slate-200 bg-white"
+                                    />
+                                ) : previewKind(previewItem) === 'image' ? (
+                                    <img
+                                        src={previewUrl}
+                                        alt={`Visualização de ${previewItem.arquivo_nome}`}
+                                        className="max-h-[70vh] max-w-full rounded-2xl object-contain shadow-sm"
+                                    />
+                                ) : (
+                                    <div className="max-w-sm text-center">
+                                        <FileText className="mx-auto h-12 w-12 text-slate-300" />
+                                        <p className="mt-3 font-bold text-slate-700">Formato sem visualização embutida</p>
+                                        <a
+                                            href={previewUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white hover:bg-indigo-700"
+                                        >
+                                            <Download className="h-4 w-4" />
+                                            Abrir arquivo
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+
+                            <aside className="space-y-4 border-t border-slate-100 bg-white p-5 lg:border-l lg:border-t-0">
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <div className="rounded-xl bg-slate-50 p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Valor</p>
+                                        <p className="mt-1 font-bold text-slate-900">{previewItem.valor ? fmt(previewItem.valor) : 'Não informado'}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-slate-50 p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Score</p>
+                                        <p className="mt-1 font-bold text-slate-900">{previewItem.fraud_score ?? 'Não informado'}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-slate-50 p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">CNPJ</p>
+                                        <p className="mt-1 break-all font-semibold text-slate-700">{previewItem.ocr_cnpj || 'Não verificado'}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-slate-50 p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Status</p>
+                                        <p className="mt-1 font-semibold text-slate-700">{previewItem.cnpj_status || 'Não verificado'}</p>
+                                    </div>
+                                </div>
+
+                                {previewItem.descricao && (
+                                    <div className="rounded-xl bg-slate-50 p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Descrição OCR</p>
+                                        <p className="mt-1 text-sm text-slate-700">{previewItem.descricao}</p>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="mb-2 block text-xs font-bold text-slate-600">
+                                        Motivo / Observação <span className="text-rose-500">(obrigatório para rejeitar)</span>
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        placeholder="Registre a justificativa da decisão..."
+                                        value={motivos[previewItem.id] || ''}
+                                        onChange={event => setMotivos(prev => ({ ...prev, [previewItem.id]: event.target.value }))}
+                                        className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                    />
+                                </div>
+
+                                <div className="space-y-2 border-t border-slate-100 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => takeAction(previewItem, 'aprovado')}
+                                        disabled={!!actionLoading || !previewItem.arquivo_url}
+                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {actionLoading === previewItem.id + 'aprovado' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                        Aprovar comprovante
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => takeAction(previewItem, 'solicitado_esclarecimento')}
+                                        disabled={!!actionLoading}
+                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-amber-600 disabled:cursor-wait disabled:opacity-50"
+                                    >
+                                        {actionLoading === previewItem.id + 'solicitado_esclarecimento' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+                                        Pedir esclarecimento
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => takeAction(previewItem, 'rejeitado')}
+                                        disabled={!!actionLoading}
+                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-rose-700 disabled:cursor-wait disabled:opacity-50"
+                                    >
+                                        {actionLoading === previewItem.id + 'rejeitado' ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                                        Rejeitar
+                                    </button>
+                                </div>
+                            </aside>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

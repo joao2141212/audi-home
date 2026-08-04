@@ -1,6 +1,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { runDeterministicFraudChecks } from './deterministic-checks.ts'
+import { getSupabasePublishableKey, getSupabaseSecretKey } from '../_shared/supabase-keys.ts'
+import { callVertexVision } from '../_shared/vertex-audit.ts'
+
+function bytesToBase64(bytes: Uint8Array) {
+    let binary = ''
+    const chunkSize = 0x8000
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+    }
+    return btoa(binary)
+}
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -13,7 +24,7 @@ async function getAuthenticatedContext(req: Request) {
 
     const authClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_ANON_KEY')!,
+        getSupabasePublishableKey(),
         { global: { headers: { Authorization: authHeader } } }
     )
 
@@ -22,7 +33,7 @@ async function getAuthenticatedContext(req: Request) {
 
     const adminClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        getSupabaseSecretKey()
     )
 
     const { data: perfil, error: perfilError } = await adminClient
@@ -33,7 +44,7 @@ async function getAuthenticatedContext(req: Request) {
 
     if (perfilError || !perfil) throw new Error('PROFILE_NOT_FOUND')
 
-    return { perfil, adminClient }
+    return { perfil, adminClient, authHeader }
 }
 
 // ── ISPB map (principais bancos brasileiros) ────────────────────────────────
@@ -109,14 +120,16 @@ serve(async (req) => {
         return new Response('ok', { headers: corsHeaders })
     }
 
+    const correlationId = crypto.randomUUID()
+
     try {
         const { comprovante_id, file_base64, mime_type, filename } = await req.json()
 
-        const { perfil, adminClient } = await getAuthenticatedContext(req)
+        const { perfil, adminClient, authHeader } = await getAuthenticatedContext(req)
 
         const { data: comprovante, error: comprovanteError } = await adminClient
             .from('comprovantes')
-            .select('id, condominio_id')
+            .select('id, condominio_id, arquivo_nome, arquivo_url, tipo_arquivo')
             .eq('id', comprovante_id)
             .single()
 
@@ -127,11 +140,25 @@ serve(async (req) => {
 
         const supabase = adminClient
 
-        const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY')
-        if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada')
-        const MODEL = 'gemini-3.1-flash-lite-preview'
+        let resolvedFileBase64 = file_base64
+        let resolvedMimeType = mime_type || comprovante.tipo_arquivo || 'application/pdf'
+        let resolvedFilename = filename || comprovante.arquivo_nome || 'comprovante'
 
-        // ── STEP 1: OCR — Multi-document via Gemini Flash Lite ──────────────
+        if (!resolvedFileBase64 && comprovante.arquivo_url) {
+            const { data: storedFile, error: storedFileError } = await adminClient.storage
+                .from('comprovantes')
+                .download(comprovante.arquivo_url)
+
+            if (storedFileError || !storedFile) throw new Error('RECEIPT_FILE_NOT_FOUND')
+
+            resolvedFileBase64 = bytesToBase64(new Uint8Array(await storedFile.arrayBuffer()))
+            resolvedMimeType = storedFile.type || resolvedMimeType
+            resolvedFilename = comprovante.arquivo_nome || resolvedFilename
+        }
+
+        if (!resolvedFileBase64) throw new Error('RECEIPT_FILE_REQUIRED')
+
+        // ── STEP 1: OCR — Vertex através do proxy Cloud Run padronizado ─────
         const prompt = `Você é um auditor fiscal brasileiro especializado em detectar fraudes em documentos financeiros.
 Analise CUIDADOSAMENTE este documento e identifique o tipo. Retorne SOMENTE JSON puro (sem markdown, sem texto fora do JSON).
 
@@ -143,6 +170,15 @@ REGRAS CRÍTICAS DE ANÁLISE:
 
 Retorne neste formato:
 {
+  "audit": {
+    "decision": "pass" | "fail" | "review",
+    "confidence": número de 0.0 a 1.0,
+    "observed": [{"evidence": "fato diretamente visível ou textual"}],
+    "findings": [{"severity": "info" | "low" | "medium" | "high" | "critical", "description": "problema observado", "evidence": "referência concreta"}],
+    "missing_evidence": ["o que não foi possível verificar"],
+    "uncertainties": ["ambiguidade ou inferência usada"]
+  },
+
   "tipo_documento": "COMPROVANTE_PIX" | "NOTA_FISCAL" | "BOLETO" | "RECIBO" | "DESCONHECIDO",
 
   // === Para COMPROVANTE_PIX ===
@@ -190,26 +226,53 @@ Retorne neste formato:
   "erro": null ou "DOCUMENTO_INVALIDO"
 }`
 
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type, data: file_base64 } }] }],
-                    generationConfig: { temperature: 0.05, maxOutputTokens: 2048 }
-                })
-            }
-        )
+        const vertexResult = await callVertexVision({
+                fileBase64: resolvedFileBase64,
+                mimeType: resolvedMimeType,
+                filename: resolvedFilename,
+                prompt,
+        })
+        const ocr: any = vertexResult.document
 
-        if (!geminiRes.ok) throw new Error(`Gemini API error: ${geminiRes.status}`)
+        const inputPrice = vertexResult.requestedModel === 'gemini-3.5-flash-lite' ? 0.30 : 0.25
+        const outputPrice = vertexResult.requestedModel === 'gemini-3.5-flash-lite' ? 2.50 : 1.50
+        const estimatedCost = vertexResult.inputTokens === null || vertexResult.outputTokens === null
+            ? null
+            : (vertexResult.inputTokens / 1_000_000 * inputPrice) + (vertexResult.outputTokens / 1_000_000 * outputPrice)
 
-        const geminiData = await geminiRes.json()
-        let rawText = geminiData.candidates[0]?.content?.parts[0]?.text || ''
-        rawText = rawText.replace(/```json\s*/g, '').replace(/```/g, '').trim()
-
-        let ocr: any = {}
-        try { ocr = JSON.parse(rawText) } catch { ocr = { erro: 'PARSE_ERROR', raw: rawText } }
+        const { error: auditLedgerError } = await supabase.from('audit_llm_runs').insert({
+            request_id: vertexResult.requestId,
+            condominio_id: comprovante.condominio_id,
+            comprovante_id,
+            requested_by: perfil.id,
+            profile: vertexResult.profile,
+            requested_model: vertexResult.requestedModel,
+            served_model: vertexResult.servedModel,
+            modality: vertexResult.modality,
+            status: vertexResult.status,
+            decision: vertexResult.audit.decision,
+            confidence: vertexResult.audit.confidence,
+            observed: vertexResult.audit.observed,
+            findings: vertexResult.audit.findings,
+            missing_evidence: vertexResult.audit.missing_evidence,
+            uncertainties: vertexResult.audit.uncertainties,
+            input_tokens: vertexResult.inputTokens,
+            output_tokens: vertexResult.outputTokens,
+            latency_ms: vertexResult.latencyMs,
+            http_status: vertexResult.httpStatus,
+            fallback_reason: vertexResult.fallbackReason,
+            estimated_cost_usd: estimatedCost,
+            pricing_snapshot_at: new Date().toISOString(),
+        })
+        if (auditLedgerError) {
+            console.error(JSON.stringify({
+                fn: 'process-comprovante',
+                status: 'audit_ledger_error',
+                request_id: vertexResult.requestId,
+                comprovante_id,
+                error_class: 'AUDIT_LEDGER_PERSIST_FAILED',
+            }))
+        }
 
         if (ocr.erro === 'DOCUMENTO_INVALIDO') {
             await supabase.from('comprovantes').update({
@@ -453,26 +516,122 @@ Retorne neste formato:
                 ? 'pendente'
                 : finalStatus
 
-        await supabase.from('comprovantes').update({
-            ...updatePayload,
-            fraud_score: finalScore, fraud_flags: fraudFlags,
-            status_auditoria: finalStatus, status: operationalStatus
-        }).eq('id', comprovante_id)
+        // A duplicate must be proven against another receipt in the same condo.
+        // The current receipt is already present before OCR starts, so a query
+        // without neq(id) classifies every upload as its own duplicate.
+        const duplicateProbe = await supabase
+            .from('comprovantes')
+            .select('id')
+            .eq('condominio_id', comprovante.condominio_id)
+            .eq('arquivo_nome', comprovante.arquivo_nome)
+            .neq('id', comprovante_id)
+            .limit(1)
+        const hasRealDuplicate = !duplicateProbe.error && (duplicateProbe.data?.length ?? 0) > 0
+        const duplicateFlagIndex = fraudFlags.indexOf('ARQUIVO_DUPLICADO')
+        if (hasRealDuplicate && duplicateFlagIndex === -1) fraudFlags.push('ARQUIVO_DUPLICADO')
+        if (!hasRealDuplicate && duplicateFlagIndex !== -1) {
+            fraudFlags.splice(duplicateFlagIndex, 1)
+        }
+
+        const receiptUpdatePayload = {
+            ocr_processado: true,
+            tipo_documento: tipoDoc,
+            ocr_confianca: Number(ocr.confianca || 60),
+            ocr_texto_completo: JSON.stringify(ocr),
+            fraud_score: finalScore,
+            fraud_flags: fraudFlags,
+            status_auditoria: finalStatus,
+            status: operationalStatus,
+        }
+        const receiptUpdateResponse = await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/rest/v1/comprovantes?id=eq.${encodeURIComponent(comprovante_id)}`,
+            {
+                method: 'PATCH',
+                headers: {
+                    apikey: getSupabasePublishableKey(),
+                    Authorization: authHeader,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(receiptUpdatePayload),
+            },
+        )
+        const receiptUpdateText = await receiptUpdateResponse.text()
+        let receiptUpdateErrorCode = 'UNKNOWN'
+        try {
+            const errorBody = JSON.parse(receiptUpdateText)
+            const rawError = errorBody?.code || errorBody?.message || 'UNKNOWN'
+            receiptUpdateErrorCode = String(rawError).replace(/[^A-Za-z0-9]+/g, '_').slice(0, 60).toUpperCase()
+        } catch (_) {
+            receiptUpdateErrorCode = 'NON_JSON_RESPONSE'
+        }
+        let persistedReceipt: { id?: string; ocr_processado?: boolean } | null = null
+
+        const receiptReadbackResponse = await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/rest/v1/comprovantes?id=eq.${encodeURIComponent(comprovante_id)}&select=id,ocr_processado,status_auditoria`,
+            {
+                headers: {
+                    apikey: getSupabasePublishableKey(),
+                    Authorization: authHeader,
+                },
+            },
+        )
+        try {
+            const rows = JSON.parse(await receiptReadbackResponse.text())
+            persistedReceipt = Array.isArray(rows) ? rows[0] ?? null : null
+        } catch (_) {
+            persistedReceipt = null
+        }
+
+        if (!receiptUpdateResponse.ok) {
+            console.error(JSON.stringify({
+                fn: 'process-comprovante',
+                status: 'error',
+                correlation_id: correlationId,
+                error_class: 'RECEIPT_PERSIST_FAILED',
+                http_status: receiptUpdateResponse.status,
+            }))
+            throw new Error(`RECEIPT_PERSIST_FAILED_HTTP_${receiptUpdateResponse.status}_${receiptUpdateErrorCode}`)
+        }
+        if (!persistedReceipt?.ocr_processado) {
+            console.error(JSON.stringify({
+                fn: 'process-comprovante',
+                status: 'error',
+                correlation_id: correlationId,
+                error_class: 'RECEIPT_PERSIST_READBACK_FAILED',
+                http_status: receiptUpdateResponse.status,
+            }))
+            throw new Error('RECEIPT_PERSIST_READBACK_FAILED')
+        }
 
         return new Response(JSON.stringify({
             success: true, tipo_documento: tipoDoc,
             fraud_score: finalScore, fraud_flags: fraudFlags,
             status: finalStatus, pix_autotransferencia: pixAutoTransferencia,
-            e2e_valido: e2eValid, alertas_ocr: ocr.alertas_ocr || [], ocr_raw: ocr
+            e2e_valido: e2eValid, alertas_ocr: ocr.alertas_ocr || [], ocr_raw: ocr,
+            correlation_id: correlationId,
         }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
     } catch (err: any) {
+        const errorMessage = typeof err?.message === 'string' ? err.message : ''
         const status =
-            err?.message === 'AUTH_REQUIRED' ? 401 :
-            err?.message === 'PROFILE_NOT_FOUND' || err?.message === 'FORBIDDEN_CONDO' ? 403 :
-            err?.message === 'RECEIPT_NOT_FOUND' ? 404 :
+            errorMessage === 'AUTH_REQUIRED' ? 401 :
+            errorMessage === 'PROFILE_NOT_FOUND' || errorMessage === 'FORBIDDEN_CONDO' ? 403 :
+            errorMessage === 'RECEIPT_NOT_FOUND' ? 404 :
+            errorMessage === 'RECEIPT_FILE_NOT_FOUND' ? 404 :
+            errorMessage === 'RECEIPT_FILE_REQUIRED' ? 400 :
+            errorMessage.startsWith('FORMAT_') || errorMessage.startsWith('VERTEX_MIME_') ? 422 :
             500
-        return new Response(JSON.stringify({ error: err.message }), {
+        const errorCode = /^[A-Z0-9_]+$/.test(errorMessage)
+            ? errorMessage.slice(0, 80)
+            : 'COMPROVANTE_PROCESSING_FAILED'
+        console.error(JSON.stringify({
+            fn: 'process-comprovante',
+            status: 'error',
+            correlation_id: correlationId,
+            comprovante_id: 'redacted',
+            error_class: errorCode,
+        }))
+        return new Response(JSON.stringify({ error: errorCode, correlation_id: correlationId }), {
             status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
     }

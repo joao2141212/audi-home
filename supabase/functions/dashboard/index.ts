@@ -9,6 +9,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getSupabaseSecretKey } from "../_shared/supabase-keys.ts";
 
 declare const Deno: any;
 
@@ -40,7 +41,7 @@ serve(async (req: Request) => {
         }
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabaseKey = getSupabaseSecretKey();
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const condominioId = url.searchParams.get('condominio_id') || 'default';

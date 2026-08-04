@@ -3,21 +3,45 @@ import { useAuth } from '../contexts/AuthContext'
 import { Loader2, AlertCircle, Building2, ShieldCheck, TrendingUp } from 'lucide-react'
 
 export function LoginPage() {
-    const { login } = useAuth()
+    const { login, resetPassword } = useAuth()
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+    const [notice, setNotice] = useState('')
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         setError('')
+        setNotice('')
 
         try {
             await login(email, password)
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Falha no login. Verifique suas credenciais.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleForgotPassword = async () => {
+        setError('')
+        setNotice('')
+
+        const normalizedEmail = email.trim()
+        if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            setError('Informe um e-mail válido para receber o link de recuperação.')
+            return
+        }
+
+        setLoading(true)
+        try {
+            await resetPassword(normalizedEmail)
+            setNotice('Se o e-mail estiver cadastrado, enviaremos um link de recuperação.')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Não foi possível solicitar a recuperação agora.')
         } finally {
             setLoading(false)
         }
@@ -135,15 +159,20 @@ export function LoginPage() {
                                         <label htmlFor="password" className="block text-sm font-bold text-slate-700">
                                             Senha
                                         </label>
-                                        <a href="#" className="text-sm font-bold text-indigo-600 hover:text-indigo-500 transition-colors">
+                                        <button
+                                            type="button"
+                                            onClick={handleForgotPassword}
+                                            disabled={loading}
+                                            className="text-sm font-bold text-indigo-600 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
                                             Esqueceu a senha?
-                                        </a>
+                                        </button>
                                     </div>
                                     <div className="relative group">
                                         <input
                                             id="password"
                                             name="password"
-                                            type="password"
+                                            type={showPassword ? 'text' : 'password'}
                                             autoComplete="current-password"
                                             required
                                             value={password}
@@ -151,6 +180,15 @@ export function LoginPage() {
                                             placeholder="••••••••"
                                             className="block w-full px-5 py-4 bg-slate-50/50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 focus:bg-white transition-all"
                                         />
+                                        <button
+                                            type="button"
+                                            aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                            title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                            onClick={() => setShowPassword((visible) => !visible)}
+                                            className="absolute inset-y-0 right-3 flex items-center px-2 text-slate-500 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-xl"
+                                        >
+                                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                        </button>
                                     </div>
                                 </div>
 
@@ -159,6 +197,15 @@ export function LoginPage() {
                                         <div className="flex items-center gap-3">
                                             <AlertCircle className="h-5 w-5 text-rose-500" />
                                             <h3 className="text-sm font-bold text-rose-800">{error}</h3>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {notice && (
+                                    <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="flex items-center gap-3">
+                                            <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                                            <h3 className="text-sm font-bold text-emerald-800">{notice}</h3>
                                         </div>
                                     </div>
                                 )}
@@ -190,3 +237,4 @@ export function LoginPage() {
         </div>
     )
 }
+import { Eye, EyeOff } from 'lucide-react'

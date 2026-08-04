@@ -1,10 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
+import { useRef } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
-import { RefreshCw, TrendingUp, TrendingDown, Wallet, AlertTriangle, CheckCircle } from 'lucide-react'
+import { RefreshCw, TrendingUp, TrendingDown, Wallet, AlertTriangle, CheckCircle, Shield, FileWarning, GitMerge, ClipboardCheck } from 'lucide-react'
 import { SkeletonDashboard } from '../../components/ui/Skeleton'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+
+interface SaudeAuditoria {
+    total_comprovantes: number
+    pendentes: number
+    suspeitos: number
+    alertas_status: number
+    auditados: number
+    sem_vinculo_banco: number
+    txs_nao_conciliadas: number
+}
 
 interface DashboardData {
     orcamento_anual: number
@@ -15,7 +26,18 @@ interface DashboardData {
     fundo_trend: string
     grafico_dados: { name: string; receitas: number; despesas: number }[]
     alertas: { title: string; description: string; severity: string; created_at: string }[]
+    saude: SaudeAuditoria
     ultima_atualizacao: string
+}
+
+const emptySaude: SaudeAuditoria = {
+    total_comprovantes: 0,
+    pendentes: 0,
+    suspeitos: 0,
+    alertas_status: 0,
+    auditados: 0,
+    sem_vinculo_banco: 0,
+    txs_nao_conciliadas: 0,
 }
 
 const fallbackData: DashboardData = {
@@ -27,6 +49,7 @@ const fallbackData: DashboardData = {
     fundo_trend: '+0%',
     grafico_dados: [],
     alertas: [],
+    saude: emptySaude,
     ultima_atualizacao: new Date().toISOString()
 }
 
@@ -34,7 +57,25 @@ export function Dashboard() {
     const { user } = useAuth()
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [data, setData] = useState<DashboardData>(fallbackData)
+    const [chartReady, setChartReady] = useState(false)
+    const chartWrapperRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        const wrapper = chartWrapperRef.current
+        if (!wrapper || typeof ResizeObserver === 'undefined') return
+
+        const updateChartVisibility = () => {
+            const { width, height } = wrapper.getBoundingClientRect()
+            setChartReady(width > 0 && height > 0)
+        }
+
+        updateChartVisibility()
+        const observer = new ResizeObserver(updateChartVisibility)
+        observer.observe(wrapper)
+        return () => observer.disconnect()
+    }, [])
 
     const fetchDashboardData = async () => {
         if (!user?.condominio_id) {
@@ -44,6 +85,7 @@ export function Dashboard() {
 
         try {
             setRefreshing(true)
+            setError(null)
 
             // 1. Buscar Transações
             const { data: txs, error: txError } = await supabase
@@ -60,39 +102,75 @@ export function Dashboard() {
                 .eq('condominio_id', user.condominio_id)
                 .single()
 
+            const { data: budgetRows, error: budgetError } = await supabase
+                .from('orcamento_anual')
+                .select('valor_previsto')
+                .eq('condominio_id', user.condominio_id)
+
+            if (budgetError) throw budgetError
+
+            const { data: reserveMovements, error: reserveMovementsError } = await supabase
+                .from('reserva_movimentacoes')
+                .select('tipo, valor')
+                .eq('condominio_id', user.condominio_id)
+
+            if (reserveMovementsError) throw reserveMovementsError
+
             // 3. Processar Totais
             const receitas = txs?.filter(t => t.type === 'CREDIT').reduce((s, t) => s + (t.valor || 0), 0) || 0
             const despesas = txs?.filter(t => t.type === 'DEBIT').reduce((s, t) => s + (t.valor || 0), 0) || 0
+            const orcamentoAnual = (budgetRows || []).reduce((sum, row) => sum + (Number(row.valor_previsto) || 0), 0)
+            const saldoInicialReserva = Number(reserve?.saldo_inicial) || 0
+            const saldoReserva = saldoInicialReserva + (reserveMovements || []).reduce((sum, movement) => {
+                const valor = Number(movement.valor) || 0
+                return sum + (String(movement.tipo || '').toUpperCase() === 'SAQUE' ? -valor : valor)
+            }, 0)
 
-            // 4. Buscar Alertas
-            const { data: alerts } = await supabase
+            // 4. Comprovantes (radar + saúde de auditoria)
+            const { data: comps } = await supabase
                 .from('comprovantes')
-                .select('*')
+                .select('id, valor, status_auditoria, transacao_id, created_at')
                 .eq('condominio_id', user.condominio_id)
-                .or('status_auditoria.eq.pendente,status_auditoria.eq.suspeito')
-                .limit(5)
+
+            const list = comps || []
+            const saude: SaudeAuditoria = {
+                total_comprovantes: list.length,
+                pendentes: list.filter(c => c.status_auditoria === 'pendente').length,
+                suspeitos: list.filter(c => c.status_auditoria === 'suspeito').length,
+                alertas_status: list.filter(c => c.status_auditoria === 'alerta').length,
+                auditados: list.filter(c => c.status_auditoria === 'auditado').length,
+                sem_vinculo_banco: list.filter(c => !c.transacao_id).length,
+                txs_nao_conciliadas: txs?.filter(t => !t.conciliado).length || 0,
+            }
+
+            const alerts = list
+                .filter(c => c.status_auditoria === 'pendente' || c.status_auditoria === 'suspeito' || c.status_auditoria === 'alerta')
+                .slice(0, 5)
 
             setData({
-                orcamento_anual: 0,
+                orcamento_anual: orcamentoAnual,
                 orcamento_trend: '+0.0%',
                 despesas_totais: despesas,
                 despesas_trend: '+0.0%',
-                fundo_reserva: reserve?.saldo_inicial || 0,
+                fundo_reserva: saldoReserva,
                 fundo_trend: '+0.0%',
                 grafico_dados: [
                     { name: 'Mês Atual', receitas, despesas }
                 ],
-                alertas: alerts?.map(a => ({
-                    title: 'Auditoria Exigida',
-                    description: `Transação suspeita de R$ ${a.valor}`,
+                alertas: alerts.map(a => ({
+                    title: a.status_auditoria === 'suspeito' ? 'Comprovante suspeito' : a.status_auditoria === 'alerta' ? 'Comprovante com alerta' : 'Pendente de revisão',
+                    description: `R$ ${a.valor ?? '—'} · status ${a.status_auditoria}`,
                     severity: a.status_auditoria === 'suspeito' ? 'high' : 'medium',
-                    created_at: a.data_upload
-                })) || [],
+                    created_at: a.created_at
+                })),
+                saude,
                 ultima_atualizacao: new Date().toISOString()
             })
 
         } catch (err) {
-            console.error('Erro ao buscar dashboard:', err)
+            const errorClass = String(err instanceof Error ? err.message : err).split(/\s|:/)[0] || 'DASHBOARD_LOAD_FAILED'
+            console.error(JSON.stringify({ fn: 'Dashboard.fetchDashboardData', status: 'error', error_class: errorClass }))
+            setError('Não foi possível carregar os dados do Dashboard. Tente novamente.')
         } finally {
             setLoading(false)
             setRefreshing(false)
@@ -111,6 +189,26 @@ export function Dashboard() {
     }
 
     if (loading) return <SkeletonDashboard />
+
+    if (error) {
+        return (
+            <div className="min-h-[360px] flex flex-col items-center justify-center gap-4 rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center">
+                <AlertTriangle className="h-10 w-10 text-rose-500" />
+                <div>
+                    <h2 className="text-lg font-bold text-rose-900">Dashboard indisponível</h2>
+                    <p className="mt-1 text-sm text-rose-700">{error}</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={fetchDashboardData}
+                    disabled={refreshing}
+                    className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-60"
+                >
+                    Tentar novamente
+                </button>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6">
@@ -140,16 +238,14 @@ export function Dashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard 
-                    title="Orçamento Mensal" 
+                    title="Orçamento Anual"
                     value={formatCurrency(data.orcamento_anual)} 
-                    trend="+12%" 
                     icon={<Wallet className="h-6 w-6" />} 
                     color="indigo" 
                 />
                 <StatCard 
                     title="Despesas Realizadas" 
                     value={formatCurrency(data.despesas_totais)} 
-                    trend="+2.1%" 
                     icon={<TrendingDown className="h-6 w-6" />} 
                     color="rose" 
                     negative 
@@ -157,11 +253,66 @@ export function Dashboard() {
                 <StatCard 
                     title="Fundo de Reserva" 
                     value={formatCurrency(data.fundo_reserva)} 
-                    trend="+5.5%" 
                     icon={<TrendingUp className="h-6 w-6" />} 
                     color="emerald" 
                 />
             </div>
+
+            {/* Saúde de auditoria — MVP pasta digital (domínio Perplexity) */}
+            <section className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                            <Shield className="h-5 w-5 text-indigo-600" />
+                            Saúde de auditoria
+                        </h2>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Completude da pasta: comprovantes, revisão e vínculo com extrato
+                        </p>
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1 rounded-full">
+                        {data.saude.total_comprovantes} docs
+                    </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <HealthChip
+                        label="Suspeitos"
+                        value={data.saude.suspeitos}
+                        icon={<FileWarning className="h-4 w-4" />}
+                        tone={data.saude.suspeitos > 0 ? 'danger' : 'ok'}
+                    />
+                    <HealthChip
+                        label="Alertas"
+                        value={data.saude.alertas_status}
+                        icon={<AlertTriangle className="h-4 w-4" />}
+                        tone={data.saude.alertas_status > 0 ? 'warn' : 'ok'}
+                    />
+                    <HealthChip
+                        label="Pendentes"
+                        value={data.saude.pendentes}
+                        icon={<ClipboardCheck className="h-4 w-4" />}
+                        tone={data.saude.pendentes > 0 ? 'warn' : 'ok'}
+                    />
+                    <HealthChip
+                        label="Auditados"
+                        value={data.saude.auditados}
+                        icon={<CheckCircle className="h-4 w-4" />}
+                        tone="ok"
+                    />
+                    <HealthChip
+                        label="Sem vínculo banco"
+                        value={data.saude.sem_vinculo_banco}
+                        icon={<GitMerge className="h-4 w-4" />}
+                        tone={data.saude.sem_vinculo_banco > 0 ? 'warn' : 'ok'}
+                    />
+                    <HealthChip
+                        label="Txs abertas"
+                        value={data.saude.txs_nao_conciliadas}
+                        icon={<TrendingDown className="h-4 w-4" />}
+                        tone={data.saude.txs_nao_conciliadas > 0 ? 'muted' : 'ok'}
+                    />
+                </div>
+            </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Gráfico */}
@@ -173,8 +324,8 @@ export function Dashboard() {
                         </div>
                     </div>
                     
-                    <div className="h-[280px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <div ref={chartWrapperRef} className="h-[280px] w-full" style={{ minHeight: 280, minWidth: 1 }}>
+                            {chartReady && <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={280}>
                             <BarChart data={data.grafico_dados} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                                 <XAxis 
@@ -198,7 +349,7 @@ export function Dashboard() {
                                 <Bar dataKey="receitas" name="Entradas" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={24} />
                                 <Bar dataKey="despesas" name="Saídas" fill="#F43F5E" radius={[4, 4, 0, 0]} barSize={24} />
                             </BarChart>
-                        </ResponsiveContainer>
+                            </ResponsiveContainer>}
                     </div>
                 </div>
 
@@ -257,17 +408,45 @@ function StatCard({ title, value, trend, icon, color, negative }: any) {
                 <div className={cn("p-4 rounded-2xl shadow-sm border", colorStyles[color])}>
                     {icon}
                 </div>
-                <div className={cn(
+                {trend && <div className={cn(
                     "flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm", 
                     negative ? "bg-rose-50/50 text-rose-600 border-rose-100" : "bg-emerald-50/50 text-emerald-600 border-emerald-100"
                 )}>
                     {trend}
-                </div>
+                </div>}
             </div>
             <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{title}</p>
                 <p className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight group-hover:scale-[1.02] transform transition-transform origin-left">{value}</p>
             </div>
+        </div>
+    )
+}
+
+function HealthChip({
+    label,
+    value,
+    icon,
+    tone,
+}: {
+    label: string
+    value: number
+    icon: ReactNode
+    tone: 'ok' | 'warn' | 'danger' | 'muted'
+}) {
+    const tones = {
+        ok: 'bg-emerald-50 text-emerald-800 border-emerald-100',
+        warn: 'bg-amber-50 text-amber-900 border-amber-100',
+        danger: 'bg-rose-50 text-rose-900 border-rose-100',
+        muted: 'bg-slate-50 text-slate-700 border-slate-100',
+    }
+    return (
+        <div className={cn('rounded-2xl border px-3 py-3 flex flex-col gap-2', tones[tone])}>
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide opacity-80">
+                {icon}
+                {label}
+            </div>
+            <p className="text-2xl font-black tabular-nums leading-none">{value}</p>
         </div>
     )
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
     Upload, FileText, AlertCircle,
-    Clock, Loader2, ShieldAlert, ShieldCheck, AlertTriangle
+    Clock, Loader2, ShieldAlert, ShieldCheck, AlertTriangle, Search, X
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { supabase } from '../../lib/supabase'
@@ -31,6 +31,10 @@ export function ReceiptUpload() {
     const [lastResult, setLastResult] = useState<any>(null)
     const [moradores, setMoradores] = useState<{ id: string; nome: string; unidade: string }[]>([])
     const [moradorId, setMoradorId] = useState<string>('')
+    const [receiptSearch, setReceiptSearch] = useState('')
+    const [statusFilter, setStatusFilter] = useState('all')
+    const [dateFrom, setDateFrom] = useState('')
+    const [dateTo, setDateTo] = useState('')
 
     const calculateFileHash = async (buffer: ArrayBuffer) => {
         const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
@@ -64,7 +68,6 @@ export function ReceiptUpload() {
             .select('id, arquivo_nome, data_emissao, valor, status_auditoria, fraud_score, fraud_flags, ocr_razao_social, ocr_cnpj, cnpj_status, descricao')
             .eq('condominio_id', user.condominio_id)
             .order('created_at', { ascending: false })
-            .limit(20)
 
         setReceipts((data || []) as Receipt[])
     }
@@ -137,12 +140,12 @@ export function ReceiptUpload() {
             setUploadStatus('success')
 
             const statusMsg: Record<string, string> = {
-                auditado: '✅ Documento auditado — Sem irregularidades detectadas',
-                alerta: '⚠️ Documento com alertas — Revisão recomendada',
-                suspeito: '🚨 Documento SUSPEITO — Revisão obrigatória antes de aprovar',
-                rejeitado: '❌ Documento REJEITADO — Não é uma NF/Recibo válido'
+                auditado: 'Documento auditado — Sem irregularidades detectadas',
+                alerta: 'Documento com alertas — Revisão recomendada',
+                suspeito: 'Documento SUSPEITO — Revisão obrigatória antes de aprovar',
+                rejeitado: 'Documento REJEITADO — Não é uma NF/Recibo válido'
             }
-            setMessage(statusMsg[fnData.status] || '✅ Processado')
+            setMessage(statusMsg[fnData.status] || 'Processado')
             await loadReceipts()
 
         } catch (error: any) {
@@ -172,6 +175,25 @@ export function ReceiptUpload() {
         }
         return { label: 'Pendente', icon: <Clock className="h-3.5 w-3.5" />, classes: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
     }
+
+    const normalizedReceiptSearch = receiptSearch.trim().toLowerCase()
+    const filteredReceipts = receipts.filter(receipt => {
+        const receiptDate = receipt.data_emissao?.slice(0, 10) || ''
+        const searchable = [
+            receipt.arquivo_nome,
+            receipt.ocr_razao_social,
+            receipt.ocr_cnpj,
+            receipt.descricao,
+            receipt.valor,
+        ].filter(Boolean).join(' ').toLowerCase()
+
+        return (!normalizedReceiptSearch || searchable.includes(normalizedReceiptSearch))
+            && (statusFilter === 'all' || receipt.status_auditoria === statusFilter)
+            && (!dateFrom || receiptDate >= dateFrom)
+            && (!dateTo || receiptDate <= dateTo)
+    })
+
+    const hasReceiptFilters = Boolean(normalizedReceiptSearch || statusFilter !== 'all' || dateFrom || dateTo)
 
     return (
         <div className="space-y-8">
@@ -214,7 +236,7 @@ export function ReceiptUpload() {
                     )}
                 >
                     <input type="file" id="nf-upload" className="hidden"
-                        accept=".pdf,.jpg,.jpeg,.png,.xml"
+                    accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ppt,.pptx,.txt,.rtf,.csv,.json,.xml,.html,.htm,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.gif,.tif,.tiff"
                         onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
                     <label htmlFor="nf-upload" className="cursor-pointer block">
                         <div className="w-16 h-16 bg-white shadow-md rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -223,7 +245,7 @@ export function ReceiptUpload() {
                         <p className="font-bold text-slate-700 text-lg">
                             {uploading ? message : 'Arraste sua NF ou clique para selecionar'}
                         </p>
-                        <p className="text-xs text-slate-400 mt-2">PDF, JPG, PNG ou XML — até 10MB</p>
+                        <p className="text-xs text-slate-400 mt-2">PDF, DOC/DOCX/ODT, XLS/XLSX, PPT/PPTX, TXT/RTF/CSV, JSON/XML/HTML e imagens JPG/PNG/WEBP/HEIC/BMP/GIF/TIFF — até 12MB</p>
                     </label>
                 </div>
 
@@ -284,15 +306,90 @@ export function ReceiptUpload() {
 
             {/* History */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-6">Histórico de Comprovantes Auditados</h3>
+                <div className="mb-6 flex flex-col gap-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900">Histórico de Comprovantes Auditados</h3>
+                            <p className="text-xs font-semibold text-slate-400 mt-1">
+                                {filteredReceipts.length} de {receipts.length} comprovantes exibidos
+                            </p>
+                        </div>
+                        {hasReceiptFilters && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setReceiptSearch('')
+                                    setStatusFilter('all')
+                                    setDateFrom('')
+                                    setDateTo('')
+                                }}
+                                className="inline-flex items-center gap-1.5 self-start rounded-xl px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 sm:self-auto"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                                Limpar filtros
+                            </button>
+                        )}
+                    </div>
+
+                    {receipts.length > 0 && (
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,2fr)_minmax(150px,1fr)_minmax(145px,auto)_minmax(145px,auto)]">
+                            <div className="relative">
+                                <label htmlFor="receipt-history-search" className="sr-only">Buscar no histórico</label>
+                                <input
+                                    id="receipt-history-search"
+                                    type="search"
+                                    value={receiptSearch}
+                                    onChange={event => setReceiptSearch(event.target.value)}
+                                    placeholder="Buscar arquivo, empresa, CNPJ, descrição ou valor..."
+                                    aria-label="Buscar no histórico de comprovantes"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                                />
+                                <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            </div>
+                            <select
+                                value={statusFilter}
+                                onChange={event => setStatusFilter(event.target.value)}
+                                aria-label="Filtrar histórico por status"
+                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                            >
+                                <option value="all">Todos os status</option>
+                                <option value="auditado">Auditados</option>
+                                <option value="suspeito">Suspeitos</option>
+                                <option value="alerta">Alertas</option>
+                                <option value="pendente">Pendentes</option>
+                                <option value="rejeitado">Rejeitados</option>
+                            </select>
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={event => setDateFrom(event.target.value)}
+                                aria-label="Filtrar histórico a partir da data"
+                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                            />
+                            <input
+                                type="date"
+                                value={dateTo}
+                                onChange={event => setDateTo(event.target.value)}
+                                aria-label="Filtrar histórico até a data"
+                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                            />
+                        </div>
+                    )}
+                </div>
                 {receipts.length === 0 ? (
                     <div className="py-12 text-center text-slate-400">
                         <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
                         <p className="font-medium">Nenhum comprovante enviado ainda</p>
                     </div>
+                ) : filteredReceipts.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400">
+                        <Search className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                        <p className="font-medium text-slate-600">Nenhum comprovante encontrado</p>
+                        <p className="mt-1 text-sm">Ajuste a busca, o status ou o período.</p>
+                    </div>
                 ) : (
                     <div className="divide-y divide-slate-100">
-                        {receipts.map((r) => {
+                        {filteredReceipts.map((r) => {
                             const s = getStatusConfig(r.status_auditoria)
                             return (
                                 <div key={r.id} className="py-4 flex items-center gap-4 hover:bg-slate-50/50 rounded-xl px-2 transition-all">

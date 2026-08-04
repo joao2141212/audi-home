@@ -20,6 +20,7 @@ SUPABASE_CREDENCIAIS.md
 dist/
 dist-ssr/
 *.local
+legado/backend/.env
 winker_exports/
 
 # Debug logs

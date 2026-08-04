@@ -18,6 +18,7 @@ import { Upload, GitMerge, LayoutDashboard, Zap, TrendingDown, LogOut, BarChart3
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import { LoginPage } from './pages/LoginPage'
+import { PasswordRecoveryPage } from './pages/PasswordRecoveryPage'
 import { MasterDashboard } from './features/dashboard/MasterDashboard'
 import { supabase } from './lib/supabase'
 import { getLogs } from './contexts/AuthContext'
@@ -27,10 +28,21 @@ const queryClient = new QueryClient()
 type Tab = 'dashboard' | 'budget' | 'statements' | 'receipts' | 'revenue' | 'expenses' | 'compliance' | 'reserve' | 'reconciliation' | 'approval' | 'history' | 'tenants' | 'winker'
 
 export default function App() {
-    const { user, logout, isAuthenticated, loading, authError } = useAuth()
+    const { user, logout, isAuthenticated, loading, authError, passwordRecovery } = useAuth()
     const [activeTab, setActiveTab] = useState<Tab>('dashboard')
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [condominioNome, setCondominioNome] = useState<string | null>(null)
+    const [reviewItemId, setReviewItemId] = useState<string | null>(null)
+
+    const openReview = (itemId: string) => {
+        setReviewItemId(itemId)
+        setActiveTab('approval')
+    }
+
+    const backToHistory = () => {
+        setReviewItemId(null)
+        setActiveTab('history')
+    }
 
     useEffect(() => {
         if (user?.condominio_id) {
@@ -89,6 +101,10 @@ export default function App() {
 
     if (!isAuthenticated) {
         return <LoginPage />
+    }
+
+    if (passwordRecovery) {
+        return <PasswordRecoveryPage />
     }
 
     const tabs = [
@@ -164,6 +180,7 @@ export default function App() {
                                     key={tab.id}
                                     onClick={() => {
                                         setActiveTab(tab.id)
+                                        if (tab.id !== 'approval') setReviewItemId(null)
                                         setIsSidebarOpen(false)
                                     }}
                                     className={cn(
@@ -292,10 +309,10 @@ export default function App() {
                                 </div>
                             </div>
                             <div className={activeTab === 'approval' ? 'block animate-in fade-in duration-300' : 'hidden'}>
-                                <ApprovalQueue />
+                                <ApprovalQueue initialItemId={reviewItemId} onBackToHistory={backToHistory} />
                             </div>
                             <div className={activeTab === 'history' ? 'block animate-in fade-in duration-300' : 'hidden'}>
-                                <ComprovantesHistory />
+                                <ComprovantesHistory onOpenReview={openReview} />
                             </div>
                             <div className={activeTab === 'tenants' ? 'block animate-in fade-in duration-300' : 'hidden'}>
                                 <TenantManager />

@@ -6,7 +6,7 @@ import {
     TrendingUp, TrendingDown, Building2, ShieldAlert,
     ShieldCheck, RefreshCw, AlertTriangle, Loader2,
     Zap, Plus, X, Save, Eye, EyeOff,
-    UserPlus, CheckCircle2, Crown
+    UserPlus, CheckCircle2, Crown, XCircle
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -41,12 +41,12 @@ interface ApiUsage {
     ultimo_uso: string | null
 }
 
-const FLAG_CONFIG: Record<string, { emoji: string; label: string }> = {
-    ALTO_VOLUME_SUSPEITOS:   { emoji: '🚨', label: 'Alto volume de suspeitos' },
-    SINDICO_APROVANDO_TUDO:  { emoji: '⚠️', label: 'Aprovando 100% sem rejeitar' },
-    AUTOTRANSFERENCIA_PIX:   { emoji: '🔴', label: 'Auto-transferência Pix' },
-    FORNECEDOR_MULTI_CONDO:  { emoji: '🕵️', label: 'Fornecedor suspeito multi-condo' },
-    CODIGO_E2E_INVALIDO:     { emoji: '❌', label: 'Pix com código E2E inválido' },
+const FLAG_CONFIG: Record<string, { icon: typeof ShieldAlert; label: string }> = {
+    ALTO_VOLUME_SUSPEITOS:   { icon: ShieldAlert, label: 'Alto volume de suspeitos' },
+    SINDICO_APROVANDO_TUDO:  { icon: AlertTriangle, label: 'Aprovando 100% sem rejeitar' },
+    AUTOTRANSFERENCIA_PIX:   { icon: RefreshCw, label: 'Auto-transferência Pix' },
+    FORNECEDOR_MULTI_CONDO:  { icon: Building2, label: 'Fornecedor suspeito multi-condo' },
+    CODIGO_E2E_INVALIDO:     { icon: XCircle, label: 'Pix com código E2E inválido' },
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -99,8 +99,9 @@ export function MasterDashboard() {
 
     if (user?.role !== 'master') {
         return (
-            <div className="p-12 text-center text-rose-600 font-bold">
-                ⛔ Acesso restrito — perfil Master obrigatório.
+            <div className="p-12 text-center text-rose-600 font-bold flex items-center justify-center gap-2">
+                <ShieldAlert className="h-5 w-5" aria-hidden="true" />
+                Acesso restrito — perfil Master obrigatório.
             </div>
         )
     }
@@ -242,8 +243,9 @@ export function MasterDashboard() {
                                     ))}
                                 </div>
                                 {onboarding === 'error' && (
-                                    <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700 font-medium">
-                                        ❌ {onboardMsg}
+                                    <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700 font-medium flex items-start gap-2">
+                                        <XCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                                        {onboardMsg}
                                     </div>
                                 )}
                                 <div className="flex gap-3 pt-2">
@@ -269,13 +271,18 @@ export function MasterDashboard() {
                     <AlertTriangle className="h-6 w-6 text-rose-600 shrink-0 mt-0.5 animate-pulse" />
                     <div>
                         <p className="font-black text-rose-900 text-base">
-                            🚨 {criticalFlags.length} red flag{criticalFlags.length > 1 ? 's' : ''} crítico{criticalFlags.length > 1 ? 's' : ''} detectado{criticalFlags.length > 1 ? 's' : ''}
+                            {criticalFlags.length} red flag{criticalFlags.length > 1 ? 's' : ''} crítico{criticalFlags.length > 1 ? 's' : ''} detectado{criticalFlags.length > 1 ? 's' : ''}
                         </p>
                         <div className="mt-2 space-y-1">
                             {criticalFlags.slice(0, 3).map((f, i) => (
                                 <p key={i} className="text-sm text-rose-700">
                                     <span className="font-bold">{f.condominio_nome}</span>
-                                    {' — '}{FLAG_CONFIG[f.flag_tipo]?.emoji} {FLAG_CONFIG[f.flag_tipo]?.label}
+                                    {' — '}
+                                    {(() => {
+                                        const FlagIcon = FLAG_CONFIG[f.flag_tipo]?.icon || AlertTriangle
+                                        return <FlagIcon className="inline-block h-4 w-4 mr-1 align-text-bottom" aria-hidden="true" />
+                                    })()}
+                                    {FLAG_CONFIG[f.flag_tipo]?.label}
                                     {' '}({f.valor} {f.unidade})
                                 </p>
                             ))}
@@ -310,15 +317,18 @@ export function MasterDashboard() {
             {/* Tab Navigation */}
             <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
                 {([
-                    ['overview',    '🏢 Condomínios'],
-                    ['redflags',    `🚨 Red Flags ${redFlags.length > 0 ? `(${redFlags.length})` : ''}`],
-                    ['api',         '⚡ Uso de API'],
-                    ['onboarding',  '➕ Novo Cliente'],
-                ] as const).map(([id, label]) => (
+                    { id: 'overview' as const, label: 'Condomínios', icon: Building2 },
+                    { id: 'redflags' as const, label: `Red Flags ${redFlags.length > 0 ? `(${redFlags.length})` : ''}`, icon: ShieldAlert },
+                    { id: 'api' as const, label: 'Uso de API', icon: Zap },
+                    { id: 'onboarding' as const, label: 'Novo Cliente', icon: Plus },
+                ]).map(({ id, label, icon: TabIcon }) => (
                     <button key={id} onClick={() => setActiveTab(id)}
                         className={cn("px-4 py-2 text-xs font-bold rounded-lg transition-colors",
                             activeTab === id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
-                        {label}
+                        <span className="inline-flex items-center gap-1.5">
+                            <TabIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                            {label}
+                        </span>
                     </button>
                 ))}
             </div>
@@ -364,8 +374,11 @@ export function MasterDashboard() {
                                                         {condoFlags.length > 0 && (
                                                             <div className="flex gap-1 mt-0.5">
                                                                 {condoFlags.map((f, i) => (
-                                                                    <span key={i} className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">
-                                                                        {FLAG_CONFIG[f.flag_tipo]?.emoji}
+                                                                    <span key={i} className="inline-flex items-center justify-center text-[9px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                                                                        {(() => {
+                                                                            const FlagIcon = FLAG_CONFIG[f.flag_tipo]?.icon || AlertTriangle
+                                                                            return <FlagIcon className="h-3 w-3" aria-hidden="true" />
+                                                                        })()}
                                                                     </span>
                                                                 ))}
                                                             </div>
@@ -387,8 +400,13 @@ export function MasterDashboard() {
                                                 <span className={cn("px-2 py-1 rounded-full text-[10px] font-black uppercase",
                                                     condoFlags.some(f => f.severidade === 'critical') ? "bg-rose-100 text-rose-700" :
                                                     condoFlags.length > 0 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700")}>
-                                                    {condoFlags.some(f => f.severidade === 'critical') ? '🚨 Crítico' :
-                                                     condoFlags.length > 0 ? '⚠️ Alerta' : '✅ OK'}
+                                                    {condoFlags.some(f => f.severidade === 'critical') ? (
+                                                        <><ShieldAlert className="inline-block h-3 w-3 mr-1 align-text-bottom" aria-hidden="true" />Crítico</>
+                                                    ) : condoFlags.length > 0 ? (
+                                                        <><AlertTriangle className="inline-block h-3 w-3 mr-1 align-text-bottom" aria-hidden="true" />Alerta</>
+                                                    ) : (
+                                                        <><CheckCircle2 className="inline-block h-3 w-3 mr-1 align-text-bottom" aria-hidden="true" />OK</>
+                                                    )}
                                                 </span>
                                             </td>
                                         </tr>
@@ -412,12 +430,19 @@ export function MasterDashboard() {
                     ) : redFlags.map((flag, i) => (
                         <div key={i} className={cn("bg-white rounded-2xl border p-5 flex items-start gap-4",
                             flag.severidade === 'critical' ? "border-rose-200 bg-rose-50/50" : "border-amber-200 bg-amber-50/50")}>
-                            <span className="text-2xl shrink-0 mt-0.5">{FLAG_CONFIG[flag.flag_tipo]?.emoji || '⚠️'}</span>
+                            {(() => {
+                                const FlagIcon = FLAG_CONFIG[flag.flag_tipo]?.icon || AlertTriangle
+                                return <FlagIcon className="h-7 w-7 shrink-0 mt-0.5" aria-hidden="true" />
+                            })()}
                             <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                     <span className={cn("text-[10px] font-black px-2 py-0.5 rounded-full uppercase",
                                         flag.severidade === 'critical' ? "bg-rose-200 text-rose-800" : "bg-amber-200 text-amber-800")}>
-                                        {flag.severidade === 'critical' ? '🚨 Crítico' : '⚠️ Alerta'}
+                                        {flag.severidade === 'critical' ? (
+                                            <><ShieldAlert className="inline-block h-3 w-3 mr-1 align-text-bottom" aria-hidden="true" />Crítico</>
+                                        ) : (
+                                            <><AlertTriangle className="inline-block h-3 w-3 mr-1 align-text-bottom" aria-hidden="true" />Alerta</>
+                                        )}
                                     </span>
                                     <span className="text-xs font-mono text-slate-400">{flag.flag_tipo}</span>
                                 </div>
@@ -445,7 +470,7 @@ export function MasterDashboard() {
                             <p className="font-bold text-indigo-900">Limite: 500 chamadas/dia (conta única Gemini)</p>
                             <p className="text-indigo-700 mt-0.5">
                                 Hoje: <b>{totalApiHoje}</b>/500 ({Math.round(totalApiHoje/500*100)}% do limite)
-                                {totalApiHoje > 400 && <span className="ml-2 text-rose-700 font-black">⚠️ atenção: perto do limite!</span>}
+                                {totalApiHoje > 400 && <span className="inline-flex items-center gap-1 ml-2 text-rose-700 font-black"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />atenção: perto do limite!</span>}
                             </p>
                         </div>
                     </div>
@@ -526,7 +551,10 @@ export function MasterDashboard() {
                                 ))}
                             </div>
                             {onboarding === 'error' && (
-                                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">❌ {onboardMsg}</div>
+                                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700 flex items-start gap-2">
+                                    <XCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                                    {onboardMsg}
+                                </div>
                             )}
                             <button onClick={handleOnboard} disabled={onboarding === 'loading'}
                                 className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">

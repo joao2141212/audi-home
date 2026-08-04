@@ -35,7 +35,11 @@ interface AuthContextType {
     isAuthenticated: boolean
     loading: boolean
     authError: string | null
+    passwordRecovery: boolean
     login: (email: string, pass: string) => Promise<void>
+    resetPassword: (email: string) => Promise<void>
+    updatePassword: (password: string) => Promise<void>
+    finishPasswordRecovery: () => void
     logout: () => Promise<void>
 }
 
@@ -56,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<UserProfile | null>(null)
     const [loading, setLoading] = useState(true)
     const [authError, setAuthError] = useState<string | null>(null)
+    const [passwordRecovery, setPasswordRecovery] = useState(false)
     const loadingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Guarantee loading never stays true more than 8s no matter what
@@ -138,11 +143,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (event === 'INITIAL_SESSION') return
 
                 try {
+                    if (event === 'PASSWORD_RECOVERY') {
+                        appendLog('info', 'Fluxo de recuperação de senha iniciado')
+                        setPasswordRecovery(true)
+                    }
+
                     if (session?.user) {
-                        await loadProfile(session.user.id, session.user.email ?? '')
+                        // The Supabase auth callback must return before querying Supabase again;
+                        // starting the profile request in the same callback can deadlock it.
+                        setTimeout(() => {
+                            void loadProfile(session.user.id, session.user.email ?? '')
+                        }, 0)
                     } else {
                         appendLog('info', 'Sessão encerrada', { event })
                         setUser(null)
+                        setPasswordRecovery(false)
                     }
                 } catch (err: any) {
                     appendLog('error', `onAuthStateChange handler threw on event ${event}`, { message: err.message })
@@ -181,6 +196,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    const resetPassword = async (email: string) => {
+        appendLog('info', 'Recuperação de senha solicitada')
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin,
+            })
+            if (error) {
+                throw new Error(getFriendlyAuthError(error))
+            }
+        } catch (err) {
+            const friendly = getFriendlyAuthError(err)
+            appendLog('error', 'Recuperação de senha falhou', { message: friendly })
+            throw new Error(friendly)
+        }
+    }
+
+    const updatePassword = async (password: string) => {
+        appendLog('info', 'Atualização de senha solicitada')
+        try {
+            const { error } = await supabase.auth.updateUser({ password })
+            if (error) {
+                throw new Error(getFriendlyAuthError(error))
+            }
+            appendLog('info', 'Senha atualizada com sucesso')
+        } catch (err) {
+            const friendly = getFriendlyAuthError(err)
+            appendLog('error', 'Atualização de senha falhou', { message: friendly })
+            throw new Error(friendly)
+        }
+    }
+
+    const finishPasswordRecovery = () => {
+        appendLog('info', 'Fluxo de recuperação de senha concluído')
+        setPasswordRecovery(false)
+    }
+
     const logout = async () => {
         appendLog('info', 'Logout')
         await supabase.auth.signOut()
@@ -188,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, authError, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, authError, passwordRecovery, login, resetPassword, updatePassword, finishPasswordRecovery, logout }}>
             {children}
         </AuthContext.Provider>
     )
