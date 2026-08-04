@@ -264,18 +264,18 @@ export default function App() {
                                 <ReserveFund />
                             </div>
                             <div className={activeTab === 'statements' ? 'block animate-in fade-in duration-300' : 'hidden'}>
-                                <div className="space-y-10">
-                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
+                                <div className="flex flex-col gap-10">
+                                    <div className="order-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
                                         <div>
-                                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Histórico de Transações</h2>
-                                            <p className="text-slate-500 mt-1">Acompanhe e filtre os lançamentos bancários.</p>
+                                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Movimentações importadas do banco</h2>
+                                            <p className="text-slate-500 mt-1">Cada linha representa uma entrada ou saída encontrada nos arquivos enviados.</p>
                                         </div>
                                         <TransactionHistory />
                                     </div>
-                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
+                                    <div className="order-1 bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
                                         <div>
-                                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Importação de Extrato</h2>
-                                            <p className="text-slate-500 mt-1">Faça upload de arquivos OFX ou remessas.</p>
+                                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Importar arquivo do banco</h2>
+                                            <p className="text-slate-500 mt-1">Exporte o extrato da conta no internet banking. OFX é o formato recomendado; CSV e PDF também são aceitos.</p>
                                         </div>
                                         <StatementUpload />
                                     </div>
@@ -305,7 +305,7 @@ export default function App() {
                                         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Central de Reconciliação</h2>
                                         <p className="text-slate-500 mt-1">Vincule os extratos processados às despesas auditadas.</p>
                                     </div>
-                                    <ReconciliationQueue />
+                                    <ReconciliationQueue onImportStatement={() => setActiveTab('statements')} />
                                 </div>
                             </div>
                             <div className={activeTab === 'approval' ? 'block animate-in fade-in duration-300' : 'hidden'}>

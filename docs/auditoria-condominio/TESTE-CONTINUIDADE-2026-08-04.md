@@ -314,3 +314,42 @@ ver os matches "ao lado", mas isso não era possível nesse tamanho.
   `/assets/index-V3DqWTem.js` no domínio `https://auditcondo.com`.
 - [ ] A inspeção da tela autenticada nessa largura ainda depende de uma sessão
   QA acessível neste navegador.
+
+## Revisão conceitual do fluxo bancário e documental em 2026-08-04
+
+### Problema identificado
+
+A interface e o mapa anterior não deixavam claro o papel de extrato, boleto,
+nota fiscal e comprovante. A Reconciliação também começa pelos comprovantes,
+o que não garante a detecção de saídas bancárias sem documento.
+
+### Diagnóstico e encaminhamento
+
+- [x] Definido que extrato é a fonte bancária das movimentações, não um
+  comprovante nem uma prova isolada da legitimidade da despesa.
+- [x] Definido que boleto é cobrança, nota/recibo documenta a obrigação e
+  comprovante documenta uma tentativa/operação específica de pagamento.
+- [x] Definido o pacote de evidências de despesa: autorização + obrigação +
+  comprovante + débito no extrato.
+- [x] Definido o pacote de receita: cobrança esperada + unidade/pagador +
+  crédito no extrato, com comprovante do morador como evidência auxiliar.
+- [x] Documentado o modelo completo em
+  `docs/auditoria-condominio/FLUXO-REAL-PRESTACAO-CONTAS.md`.
+- [x] A Reconciliação ganhou definição visível de extrato e comprovante e ação
+  direta para abrir a importação do arquivo do banco.
+- [x] O estado sem correspondência também oferece a importação, em vez de
+  apenas mandar o usuário procurar outra tela.
+- [x] A tela `Extratos` passou a exibir a importação antes do histórico e usa
+  linguagem operacional: exportar no internet banking e enviar OFX, CSV ou
+  PDF.
+- [ ] Mudar a Reconciliação para também partir das movimentações do extrato e
+  expor saídas sem documento, documentos sem transação, entradas não
+  identificadas e divergências.
+- [ ] Separar semanticamente despesas de fornecedores e pagamentos de
+  moradores, ainda que a migração física seja executada em etapas.
+- [ ] Fazer o Winker ser a fonte principal de cobranças emitidas; boleto manual
+  deve ser contingência.
+- [x] `npm run build` passou e gerou o bundle
+  `frontend/dist/assets/index-UAjoQQ-P.js`.
+- [x] `npm run lint` passou sem erros.
+- [ ] Publicar esta camada de clareza no frontend e confirmar o bundle servido.

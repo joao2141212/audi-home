@@ -79,8 +79,8 @@ export function StatementUpload() {
                         <div className="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
                             {uploading ? <Loader2 className="animate-spin text-indigo-600 h-10 w-10" /> : <Landmark className="text-indigo-600 h-10 w-10" />}
                         </div>
-                        <h3 className="text-xl font-black text-gray-900 mb-2">Importar Extrato Cloud</h3>
-                        <p className="text-gray-500 max-w-sm mx-auto">{uploading ? message : 'Arraste o arquivo PDF, CSV ou OFX do seu banco para processar no Supabase.'}</p>
+                        <h3 className="text-xl font-black text-gray-900 mb-2">Enviar arquivo do banco</h3>
+                        <p className="text-gray-500 max-w-xl mx-auto">{uploading ? message : 'No internet banking, exporte o extrato da conta do condomínio. Envie OFX (recomendado), CSV ou PDF. Cada movimentação será comparada com cobranças e comprovantes.'}</p>
                     </label>
                 </div>
             </div>

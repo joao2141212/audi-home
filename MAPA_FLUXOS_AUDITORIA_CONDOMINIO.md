@@ -134,7 +134,7 @@ Para cada transação:
 
 ### Por que importa
 
-O extrato é a verdade financeira do dinheiro que entrou e saiu. Toda auditoria precisa bater documento contra transação bancária.
+O extrato é a fonte bancária autoritativa da movimentação que entrou e saiu da conta. Ele prova a movimentação, mas não prova sozinho sua legitimidade, autorização ou natureza. Toda auditoria precisa conferir cada linha do banco contra os controles e documentos correspondentes.
 
 ### Estado atual
 

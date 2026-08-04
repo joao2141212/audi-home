@@ -38,7 +38,11 @@ interface TransactionMatch {
     matchReasons: string[]
 }
 
-export function ReconciliationQueue() {
+interface ReconciliationQueueProps {
+    onImportStatement?: () => void
+}
+
+export function ReconciliationQueue({ onImportStatement }: ReconciliationQueueProps) {
     const { user } = useAuth()
     const [queue, setQueue] = useState<QueueItem[]>([])
     const [selectedItems, setSelectedItems] = useState<string[]>([])
@@ -176,11 +180,25 @@ export function ReconciliationQueue() {
                 </button>
             </header>
 
-            <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-                <p>
-                    <strong>O que fazer nesta tela:</strong> selecione um comprovante à esquerda. O sistema busca no extrato o débito com valor e data compatíveis. Abra o comprovante, confira a descrição e clique em <strong>Vincular e marcar como conciliado</strong> somente quando a evidência estiver correta.
-                </p>
+            <div className="flex flex-col gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-3">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                    <div className="space-y-1.5 leading-relaxed">
+                        <p><strong>Arquivo do banco (extrato):</strong> contém todas as entradas e saídas da conta.</p>
+                        <p><strong>Comprovante de pagamento:</strong> é a evidência de uma operação específica.</p>
+                        <p><strong>Nesta etapa:</strong> confirme se o documento e a saída do banco pertencem ao mesmo pagamento.</p>
+                    </div>
+                </div>
+                {onImportStatement && (
+                    <button
+                        type="button"
+                        onClick={onImportStatement}
+                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white shadow-sm transition-colors hover:bg-blue-800"
+                    >
+                        <Banknote className="h-4 w-4" />
+                        Importar arquivo do banco
+                    </button>
+                )}
             </div>
 
             {actionError && (
@@ -265,9 +283,17 @@ export function ReconciliationQueue() {
                     ) : matches.length === 0 ? (
                         <div className="min-h-[300px] rounded-[2.5rem] border border-amber-100 bg-amber-50 flex flex-col items-center justify-center gap-3 text-center p-12">
                             <AlertCircle className="h-10 w-10 text-amber-500" />
-                            <p className="font-bold text-amber-900">Nenhum débito compatível encontrado.</p>
-                            <p className="max-w-md text-sm text-amber-800">Importe o extrato bancário ou mantenha o comprovante pendente para revisar quando o pagamento aparecer.</p>
-                            <button type="button" onClick={() => { setSelectedItems([]); setMatches([]) }} className="mt-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-amber-900 shadow-sm hover:bg-amber-100">Manter pendente</button>
+                            <p className="font-bold text-amber-900">Nenhuma saída compatível foi encontrada no arquivo do banco.</p>
+                            <p className="max-w-md text-sm text-amber-800">Envie o extrato da conta do condomínio ou mantenha este comprovante pendente até o pagamento aparecer no banco.</p>
+                            <div className="mt-2 flex flex-wrap justify-center gap-3">
+                                {onImportStatement && (
+                                    <button type="button" onClick={onImportStatement} className="inline-flex items-center gap-2 rounded-xl bg-amber-900 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-950">
+                                        <Banknote className="h-4 w-4" />
+                                        Importar arquivo do banco
+                                    </button>
+                                )}
+                                <button type="button" onClick={() => { setSelectedItems([]); setMatches([]) }} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-amber-900 shadow-sm hover:bg-amber-100">Manter pendente</button>
+                            </div>
                         </div>
                     ) : (
                         <div className="space-y-4">
