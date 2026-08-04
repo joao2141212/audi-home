@@ -352,4 +352,10 @@ o que não garante a detecção de saídas bancárias sem documento.
 - [x] `npm run build` passou e gerou o bundle
   `frontend/dist/assets/index-UAjoQQ-P.js`.
 - [x] `npm run lint` passou sem erros.
-- [ ] Publicar esta camada de clareza no frontend e confirmar o bundle servido.
+- [x] Frontend publicado no Netlify: deploy
+  `6a725f9cffd58e6bd83d51b5`.
+- [x] Navegador público confirmou que `https://auditcondo.com` serve o bundle
+  novo `/assets/index-UAjoQQ-P.js`.
+- [ ] A navegação autenticada do botão Reconciliação → Importar arquivo do
+  banco ainda precisa de prova DOM numa sessão controlável; o navegador de
+  verificação abriu somente o acesso público.
