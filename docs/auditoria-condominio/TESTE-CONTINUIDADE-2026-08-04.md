@@ -261,3 +261,33 @@ ação de aprovação também não aplicava o condomínio no filtro das atualiza
 - [x] Build, lint e `git diff --check` passaram.
 - [ ] Publicar frontend e validar com sessão QA que seleção, preview, matching
   e vínculo alteram os registros reais do Supabase.
+
+## Publicação do ambiente real em 2026-08-04
+
+- [x] Build de produção gerado com `npm run build`: código 0; bundle
+  `frontend/dist/assets/index-yt3qLajo.js`.
+- [x] Lint gerado com `npm run lint`: código 0.
+- [x] Migration `20260804120000_boleto_documents_and_reconciliation.sql`
+  aplicada no Supabase `vheqwyakucpvymjojezn` pelo endpoint administrativo:
+  HTTP 201.
+- [x] Banco remoto confirmou `beneficiario`, `linha_digitavel`, `arquivo_url`,
+  `arquivo_nome` e `arquivo_tipo` em `boletos_emitidos`.
+- [x] Policy remota confirmada: `boletos_emitidos_condo_isolation`.
+- [x] Nove Edge Functions publicadas no Supabase: `audit`, `audit-expense`,
+  `create-condo`, `dashboard`, `process-comprovante`, `process-extrato`,
+  `reconciliation`, `sync-winker` e `transactions`.
+- [x] Frontend enviado para `main` no commit `fd427d6`.
+- [x] Deploy Netlify de produção live: deploy
+  `6a725866c1585d318a8f9036`, domínio `https://auditcondo.com`.
+- [x] Browser público confirmou que o domínio serve
+  `/assets/index-yt3qLajo.js` e renderiza a tela de login.
+- [ ] Fluxos autenticados de upload, preview, matching e vínculo ainda não
+  foram executados porque não há uma sessão QA válida disponível no navegador.
+
+### Incidente do CLI de migration
+
+O `supabase db push` foi tentado apenas em modo `--dry-run` e parou antes de
+aplicar SQL porque o projeto recusou criar o login temporário do CLI com
+`permission denied to alter role`. A migration não foi aplicada por esse
+caminho. O endpoint administrativo autorizado foi usado em seguida e retornou
+HTTP 201; a consulta remota das colunas e da policy confirmou o efeito.
