@@ -308,4 +308,9 @@ ver os matches "ao lado", mas isso não era possível nesse tamanho.
 - [x] Em telas menores que `md`, o empilhamento continua intencional para não
   quebrar a leitura em celular.
 - [x] Build e lint passaram após a alteração.
-- [ ] Publicar o bundle corrigido e repetir a inspeção da tela autenticada.
+- [x] Bundle corrigido publicado no Netlify: deploy
+  `6a725c955b98eb6e0c95d4b9`.
+- [x] Browser público confirmou o bundle novo
+  `/assets/index-V3DqWTem.js` no domínio `https://auditcondo.com`.
+- [ ] A inspeção da tela autenticada nessa largura ainda depende de uma sessão
+  QA acessível neste navegador.
