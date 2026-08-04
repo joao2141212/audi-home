@@ -359,3 +359,28 @@ o que não garante a detecção de saídas bancárias sem documento.
 - [ ] A navegação autenticada do botão Reconciliação → Importar arquivo do
   banco ainda precisa de prova DOM numa sessão controlável; o navegador de
   verificação abriu somente o acesso público.
+
+## Especificação canônica dos fluxos em 2026-08-04
+
+### Objetivo
+
+Consolidar em um único documento o modelo correto de auditoria condominial, o
+estado atual do AudiCondo, dependências, gaps e critérios de aceite, além de um
+briefing que possa ser enviado a LLMs de pesquisa para comparação externa.
+
+### Evidência e resultado
+
+- [x] Reindexação completa do checkout canônico executada antes da análise.
+- [x] Índice CBM confirmou 2.187 nós e 3.968 relações no `main`, SHA
+  `ab9eccd6bc26865fa8d6803117278b6e48f10144`.
+- [x] Fluxos atuais cruzados com o mapa histórico, integração Winker, contrato
+  de conectores, matriz de comprovantes e frontend ativo.
+- [x] Fontes oficiais e páginas de produtos comparáveis pesquisadas para
+  construir o roteiro de benchmark.
+- [x] Criado
+  `docs/auditoria-condominio/ESPECIFICACAO-CANONICA-FLUXOS.md` com 17 fluxos,
+  entidades, estados, dependências, critérios de aceite, ordem de execução e
+  prompt portátil para pesquisa externa.
+- [x] `docs/auditoria-condominio/README.md` aponta para a nova referência única.
+- [ ] Executar os gaps na ordem definida no documento; esta etapa produziu a
+  especificação e não marca os fluxos incompletos como resolvidos.
